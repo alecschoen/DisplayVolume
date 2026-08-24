@@ -19,6 +19,19 @@ cd "$(dirname "$0")/.."
 
 CONFIGURATION="${CONFIGURATION:-release}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+
+# Fail early and loudly if a named identity doesn't exist, instead of
+# letting codesign fail cryptically halfway through.
+if [[ "$CODESIGN_IDENTITY" != "-" ]]; then
+    if ! security find-identity -v -p codesigning | grep -qF "$CODESIGN_IDENTITY"; then
+        echo "error: no code-signing identity named \"$CODESIGN_IDENTITY\" in your keychain." >&2
+        echo "       Create one in Keychain Access (Certificate Assistant → Create a" >&2
+        echo "       Certificate… → Identity Type: Self-Signed Root, Certificate Type:" >&2
+        echo "       Code Signing), or list identities with:" >&2
+        echo "           security find-identity -v -p codesigning" >&2
+        exit 1
+    fi
+fi
 BUILD_DIR=".build"
 APP_NAME="DisplayVolume"
 OUT_DIR="${OUT_DIR:-build}"
