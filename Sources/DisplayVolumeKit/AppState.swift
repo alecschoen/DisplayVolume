@@ -617,8 +617,15 @@ public final class AppState: ObservableObject {
         }
         refreshPermissionStates()
 
-        // Keyboard control: user enabled it, then granted permission later.
-        if keyboardControlEnabled, !mediaKeys.isRunning, AccessibilityPermission.isGranted {
+        // Keyboard control lifecycle:
+        //  - permission revoked while the tap is up → tear it down at once
+        //    (a lingering tap across a revocation can wedge session input);
+        //  - user enabled the feature, then granted permission later → start.
+        if mediaKeys.isRunning, !AccessibilityPermission.isGranted {
+            AppLog.keys.warning("Accessibility revoked; removing media-key tap")
+            mediaKeys.stop()
+        } else if keyboardControlEnabled, !mediaKeys.isRunning,
+                  AccessibilityPermission.isGranted {
             try? mediaKeys.start()
         }
 

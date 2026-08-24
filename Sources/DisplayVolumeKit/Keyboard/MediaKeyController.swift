@@ -37,6 +37,13 @@ public final class MediaKeyController {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
+    // Re-enable throttling: if the system keeps disabling the tap (e.g.
+    // while Accessibility is being revoked), give up instead of fighting
+    // the WindowServer — a tug-of-war over a session event tap can wedge
+    // event delivery for the whole login session.
+    private var lastReenable = Date.distantPast
+    private var reenableStrikes = 0
+
     // NX constants (IOKit/hidsystem/ev_keymap.h)
     private static let nxSysdefinedType: UInt32 = 14 // NX_SYSDEFINED
     private static let auxControlSubtype: Int16 = 8  // NX_SUBTYPE_AUX_CONTROL_BUTTONS
@@ -88,6 +95,9 @@ public final class MediaKeyController {
         guard isRunning || eventTap != nil else { return }
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
+            // Fully sever the WindowServer connection, not just disable it,
+            // so no half-dead tap lingers across permission changes.
+            CFMachPortInvalidate(tap)
         }
         if let source = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
@@ -95,15 +105,34 @@ public final class MediaKeyController {
         eventTap = nil
         runLoopSource = nil
         isRunning = false
+        reenableStrikes = 0
         AppLog.keys.info("Media-key tap stopped")
     }
 
     // MARK: - Event handling (event-tap thread / main run loop)
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // If the OS disabled the tap (timeout/user input flood), re-enable.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap = eventTap {
+            // The OS disabled the tap. Re-enable ONLY when it is safe:
+            //  - never while Accessibility is revoked (the disable is the
+            //    system telling us to go away — fighting it can hang the
+            //    session's event delivery), and
+            //  - never more than a few times in quick succession.
+            guard AccessibilityPermission.isGranted else {
+                AppLog.keys.warning("Tap disabled and Accessibility revoked; tearing down")
+                DispatchQueue.main.async { [weak self] in self?.stop() }
+                return Unmanaged.passUnretained(event)
+            }
+            let now = Date()
+            if now.timeIntervalSince(lastReenable) > 2.0 {
+                reenableStrikes = 0
+            }
+            reenableStrikes += 1
+            lastReenable = now
+            if reenableStrikes > 4 {
+                AppLog.keys.error("Tap keeps getting disabled; giving up instead of fighting the system")
+                DispatchQueue.main.async { [weak self] in self?.stop() }
+            } else if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
             return Unmanaged.passUnretained(event)
