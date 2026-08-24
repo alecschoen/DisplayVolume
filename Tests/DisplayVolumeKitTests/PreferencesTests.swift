@@ -81,6 +81,15 @@ struct PreferencesTests {
         }
     }
 
+    @Test("match-system-output defaults to on and persists when turned off")
+    func matchSystemOutputDefaultsOn() {
+        withDefaults { defaults in
+            #expect(Preferences(defaults: defaults).matchSystemOutput == true)
+            Preferences(defaults: defaults).matchSystemOutput = false
+            #expect(Preferences(defaults: defaults).matchSystemOutput == false)
+        }
+    }
+
     @Test("start-at-login, keyboard, onboarding, and resume flags persist")
     func togglesPersist() {
         withDefaults { defaults in

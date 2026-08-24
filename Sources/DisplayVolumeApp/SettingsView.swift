@@ -7,6 +7,14 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Toggle("Match system output device", isOn: Binding(
+                get: { appState.matchSystemOutput },
+                set: { appState.setMatchSystemOutput($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .help("Keep the selection in sync with System Settings → Sound: picking a device here also switches the Mac's output, and changing the Mac's output retargets DisplayVolume.")
+
             Toggle("Start at Login", isOn: Binding(
                 get: { appState.startAtLoginEnabled },
                 set: { appState.setStartAtLogin($0) }

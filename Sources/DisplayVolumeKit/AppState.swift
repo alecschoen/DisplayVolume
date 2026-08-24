@@ -37,6 +37,7 @@ public final class AppState: ObservableObject {
     @Published public private(set) var isMuted: Bool
     @Published public private(set) var startAtLoginEnabled = false
     @Published public private(set) var keyboardControlEnabled: Bool
+    @Published public private(set) var matchSystemOutput: Bool
     @Published public private(set) var audioPermissionState: PermissionState = .unknown
     @Published public private(set) var accessibilityPermissionState: PermissionState = .unknown
     @Published public private(set) var stats = PipelineStats()
@@ -78,8 +79,18 @@ public final class AppState: ObservableObject {
         volume = preferences.volume
         isMuted = preferences.muted
         keyboardControlEnabled = preferences.keyboardControlEnabled
+        matchSystemOutput = preferences.matchSystemOutput
         selectedDeviceUID = preferences.selectedDeviceUID
         showOnboarding = !preferences.onboardingCompleted
+
+        // When matching the system output, the macOS Sound selection is the
+        // source of truth at launch.
+        if matchSystemOutput,
+           let systemUID = deviceManager.defaultOutputDeviceUID(),
+           !systemUID.hasPrefix(AudioDeviceManager.aggregateUIDPrefix) {
+            selectedDeviceUID = systemUID
+            preferences.selectedDeviceUID = systemUID
+        }
 
         gainProcessor.setTarget(volume: volume, muted: isMuted)
 
@@ -111,6 +122,9 @@ public final class AppState: ObservableObject {
     private func wireCallbacks() {
         deviceManager.onDevicesChanged = { [weak self] in
             self?.handleDevicesChanged()
+        }
+        deviceManager.onDefaultOutputChanged = { [weak self] in
+            self?.handleDefaultOutputChanged()
         }
         deviceManager.onWatchedDeviceEvent = { [weak self] event in
             self?.handleWatchedDeviceEvent(event)
@@ -229,6 +243,45 @@ public final class AppState: ObservableObject {
         guard uid != selectedDeviceUID || !pipeline.isRunning else { return }
         selectedDeviceUID = uid
         preferences.selectedDeviceUID = uid
+        if pipeline.isRunning {
+            stopPipeline(newStatus: .stopped)
+        }
+        // Keep macOS Sound output in step: audio only reaches the tap when
+        // the system actually plays to the selected device. (The resulting
+        // default-changed notification is a no-op — UIDs already match.)
+        if matchSystemOutput {
+            deviceManager.setDefaultOutputDevice(uid: uid)
+        }
+        if wantsProcessing {
+            nextRetryAllowedAt = .distantPast
+            attemptStart()
+        }
+    }
+
+    /// Enables/disables two-way sync with the macOS default output. When
+    /// turning it on, the current system output wins.
+    public func setMatchSystemOutput(_ enabled: Bool) {
+        matchSystemOutput = enabled
+        preferences.matchSystemOutput = enabled
+        if enabled {
+            adoptSystemDefaultOutput()
+        }
+    }
+
+    private func handleDefaultOutputChanged() {
+        guard matchSystemOutput else { return }
+        adoptSystemDefaultOutput()
+    }
+
+    /// Follows the system default output: retargets the selection (and the
+    /// running pipeline) to whatever macOS is now playing to.
+    private func adoptSystemDefaultOutput() {
+        guard let systemUID = deviceManager.defaultOutputDeviceUID(),
+              !systemUID.hasPrefix(AudioDeviceManager.aggregateUIDPrefix),
+              systemUID != selectedDeviceUID else { return }
+        AppLog.devices.info("Following system output change")
+        selectedDeviceUID = systemUID
+        preferences.selectedDeviceUID = systemUID
         if pipeline.isRunning {
             stopPipeline(newStatus: .stopped)
         }

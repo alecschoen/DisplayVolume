@@ -34,8 +34,10 @@ public final class AudioDeviceManager {
     /// excluded from the selectable list (and cleaned up if ever stale).
     public static let aggregateUIDPrefix = "com.bnewable.DisplayVolume.aggregate"
 
-    /// Fired when the device list may have changed (add/remove/default change).
+    /// Fired when the device list may have changed (add/remove).
     public var onDevicesChanged: (() -> Void)?
+    /// Fired when the system default output device changes.
+    public var onDefaultOutputChanged: (() -> Void)?
     /// Fired when a watched device dies, or nil deviceID events.
     public var onWatchedDeviceEvent: ((WatchedDeviceEvent) -> Void)?
 
@@ -97,12 +99,51 @@ public final class AudioDeviceManager {
         outputDevices().first { $0.uid == uid }
     }
 
+    // MARK: - System default output
+
+    /// UID of the current system default output device (System Settings →
+    /// Sound → Output), or nil if it cannot be determined.
+    public func defaultOutputDeviceUID() -> String? {
+        let (status, deviceID) = CA.read(CA.systemObject,
+                                         kAudioHardwarePropertyDefaultOutputDevice,
+                                         defaultValue: AudioObjectID(kAudioObjectUnknown))
+        guard status == noErr, deviceID != kAudioObjectUnknown else { return nil }
+        return CA.deviceUID(deviceID)
+    }
+
+    /// Makes the device with `uid` the system default output, so the app's
+    /// selection and the macOS Sound output stay in step.
+    @discardableResult
+    public func setDefaultOutputDevice(uid: String) -> Bool {
+        guard let deviceID = CA.deviceID(forUID: uid) else {
+            AppLog.devices.warning("Cannot set default output: no device for UID")
+            return false
+        }
+        var addr = CA.address(kAudioHardwarePropertyDefaultOutputDevice)
+        var value = deviceID
+        let status = AudioObjectSetPropertyData(CA.systemObject, &addr, 0, nil,
+                                                UInt32(MemoryLayout<AudioObjectID>.size),
+                                                &value)
+        if status != noErr {
+            AppLog.devices.error("Setting default output failed: \(status)")
+        }
+        return status == noErr
+    }
+
     // MARK: - System-level listeners
 
     public func startWatchingSystem() {
         guard systemListenerBlock == nil else { return }
-        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.onDevicesChanged?()
+        let block: AudioObjectPropertyListenerBlock = { [weak self] count, addresses in
+            guard let self else { return }
+            for i in 0..<Int(count) {
+                switch addresses[i].mSelector {
+                case kAudioHardwarePropertyDefaultOutputDevice:
+                    self.onDefaultOutputChanged?()
+                default:
+                    self.onDevicesChanged?()
+                }
+            }
         }
         let selectors: [AudioObjectPropertySelector] = [
             kAudioHardwarePropertyDevices,

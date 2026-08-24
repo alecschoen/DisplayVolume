@@ -106,7 +106,15 @@ Check each box only when the observed behavior matches the expectation.
 - [ ] Grant later via System Settings → Start Processing works without
       reinstalling.
 
-## 18. One-hour soak
+## 18. Match system output device
+- [ ] With the toggle ON, pick a different device in the app's picker →
+      System Settings → Sound → Output switches to the same device.
+- [ ] Switch the output from Control Center / System Settings → the app's
+      selection follows within a second and, if processing was active, it
+      resumes on the new device.
+- [ ] Turn the toggle OFF → the two selections become independent again.
+
+## 19. One-hour soak
 - [ ] Play continuous audio for ≥1 hour while Active.
 - [ ] Memory (Activity Monitor) stays flat (no growth trend).
 - [ ] CPU stays below ~5 % for the app during stereo playback.

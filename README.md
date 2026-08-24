@@ -39,6 +39,11 @@ supported process-tap API
 
 - Menu-bar app, no Dock icon
 - Output-device picker (devices identified by persistent Core Audio UID)
+- Two-way sync with the macOS output ("Match system output device", on by
+  default): picking a device in the app also switches System Settings →
+  Sound, and changing the Mac's output elsewhere retargets the app — the
+  tap only captures audio destined for the selected device, so keeping them
+  matched is what makes processing work
 - Volume slider 0–100 % with perceptual (quadratic) volume curve
 - Mute / unmute, always click-free (10–30 ms gain ramps)
 - Optional keyboard volume-key control (mute / down / up, 5 % steps,

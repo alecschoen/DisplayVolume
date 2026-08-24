@@ -8,6 +8,7 @@ public final class Preferences {
         public static let muted = "muted"
         public static let startAtLogin = "startAtLogin"
         public static let keyboardControlEnabled = "keyboardControlEnabled"
+        public static let matchSystemOutput = "matchSystemOutput"
         public static let onboardingCompleted = "onboardingCompleted"
         public static let processingWasActive = "processingWasActive"
     }
@@ -57,6 +58,19 @@ public final class Preferences {
     public var keyboardControlEnabled: Bool {
         get { defaults.bool(forKey: Key.keyboardControlEnabled) }
         set { defaults.set(newValue, forKey: Key.keyboardControlEnabled) }
+    }
+
+    /// Keep the app's selected device in sync with the macOS default output
+    /// (both directions). Defaults to true: the tap only captures audio
+    /// destined for the selected device, so a mismatch means silence.
+    public var matchSystemOutput: Bool {
+        get {
+            guard defaults.object(forKey: Key.matchSystemOutput) != nil else {
+                return true
+            }
+            return defaults.bool(forKey: Key.matchSystemOutput)
+        }
+        set { defaults.set(newValue, forKey: Key.matchSystemOutput) }
     }
 
     public var onboardingCompleted: Bool {
