@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Minimal entitlements for local development.
+
+	  DisplayVolume is deliberately NOT sandboxed in this version:
+	  Core Audio process taps are gated by the user-facing
+	  "System Audio Recording" TCC consent (NSAudioCaptureUsageDescription),
+	  not by an entitlement, and running unsandboxed keeps the local
+	  development build simple. No microphone, network, or file
+	  entitlements are requested anywhere.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>
