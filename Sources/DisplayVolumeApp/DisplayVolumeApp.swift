@@ -25,9 +25,10 @@ struct DisplayVolumeApp: App {
     private var menuBarSymbol: String {
         if appState.isMuted { return "speaker.slash" }
         switch appState.status {
-        case .active: return "speaker.wave.2.fill"
+        case .active, .nativeVolume: return "speaker.wave.2.fill"
         case .stopped: return "speaker.wave.2"
-        default: return "speaker.badge.exclamationmark"
+        case .permissionRequired, .outputDisconnected, .audioError:
+            return "speaker.badge.exclamationmark"
         }
     }
 }

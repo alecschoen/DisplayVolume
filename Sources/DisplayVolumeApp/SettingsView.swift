@@ -37,12 +37,16 @@ struct SettingsView: View {
                 missingIsProblem: appState.status == .permissionRequired
             )
 
+            // On a native-volume device the sound keys pass through to
+            // macOS, so a missing Accessibility grant only matters in
+            // software mode (fixed-volume display selected).
             permissionRow(
                 title: "Accessibility (volume keys)",
                 state: appState.accessibilityPermissionState,
-                helpWhenMissing: "Needed only for the keyboard volume keys. The slider works without it.",
+                helpWhenMissing: "Needed only for the keyboard volume keys on fixed-volume displays. The slider works without it.",
                 openSettings: { appState.openAccessibilityPermissionSettings() },
                 missingIsProblem: appState.keyboardControlEnabled
+                    && appState.controlMode == .software
                     && appState.accessibilityPermissionState != .granted
             )
         }
