@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreAudio
 import Foundation
 import ServiceManagement
 
@@ -7,6 +8,7 @@ import ServiceManagement
 public enum AppStatus: Equatable {
     case stopped
     case active
+    case nativeVolume
     case permissionRequired
     case outputDisconnected
     case audioError(String)
@@ -15,11 +17,21 @@ public enum AppStatus: Equatable {
         switch self {
         case .stopped: return "Stopped"
         case .active: return "Active"
+        case .nativeVolume: return "Active (native volume)"
         case .permissionRequired: return "Permission required"
         case .outputDisconnected: return "Output disconnected"
         case .audioError: return "Audio error"
         }
     }
+}
+
+/// How the current output device's volume is controlled.
+public enum OutputControlMode: Equatable {
+    /// Fixed-volume device: tap → software gain → render (the pipeline).
+    case software
+    /// Device with settable hardware volume: the slider drives the device's
+    /// own volume (the same control macOS uses), no tap needed.
+    case hardware
 }
 
 /// Central, main-actor state machine. Owns the pipeline, device manager,
@@ -38,6 +50,7 @@ public final class AppState: ObservableObject {
     @Published public private(set) var startAtLoginEnabled = false
     @Published public private(set) var keyboardControlEnabled: Bool
     @Published public private(set) var matchSystemOutput: Bool
+    @Published public private(set) var controlMode: OutputControlMode = .software
     @Published public private(set) var audioPermissionState: PermissionState = .unknown
     @Published public private(set) var accessibilityPermissionState: PermissionState = .unknown
     @Published public private(set) var stats = PipelineStats()
@@ -68,7 +81,11 @@ public final class AppState: ObservableObject {
     private var pollTimer: Timer?
     private var lastInputCallbackCount: UInt64 = 0
     private var stalledTicks = 0
-    private var wasProcessingBeforeSleep = false
+
+    /// Device driven directly in hardware mode (transient object ID).
+    private var hardwareDeviceID = AudioObjectID(kAudioObjectUnknown)
+    /// Volume to restore when unmuting a device that has no mute control.
+    private var hardwareMuteFallbackVolume: Float = Preferences.defaultVolume
 
     // MARK: - Init
 
@@ -105,13 +122,14 @@ public final class AppState: ObservableObject {
         accessibilityPermissionState = AccessibilityPermission.state
         startPollTimer()
 
-        // Resume processing only if it was active at last quit (permission
-        // was necessarily granted then; no surprise first-run prompt).
-        if preferences.processingWasActive, selectedDeviceUID != nil {
-            wantsProcessing = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.attemptStart()
-            }
+        // Resume intent only if processing was active at last quit
+        // (permission was necessarily granted then; no surprise first-run
+        // prompt). The delayed re-evaluation picks hardware or software
+        // mode for the current device and starts the pipeline only in
+        // software mode.
+        wantsProcessing = preferences.processingWasActive && selectedDeviceUID != nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.reevaluateControlMode()
         }
 
         if keyboardControlEnabled, AccessibilityPermission.isGranted {
@@ -162,6 +180,7 @@ public final class AppState: ObservableObject {
     }
 
     private func attemptStart() {
+        guard controlMode == .software else { return }
         guard wantsProcessing, !pipeline.isRunning else { return }
         guard Date() >= nextRetryAllowedAt else { return }
         guard let uid = selectedDeviceUID else {
@@ -240,7 +259,7 @@ public final class AppState: ObservableObject {
     }
 
     public func selectDevice(uid: String) {
-        guard uid != selectedDeviceUID || !pipeline.isRunning else { return }
+        guard uid != selectedDeviceUID else { return }
         selectedDeviceUID = uid
         preferences.selectedDeviceUID = uid
         if pipeline.isRunning {
@@ -252,10 +271,8 @@ public final class AppState: ObservableObject {
         if matchSystemOutput {
             deviceManager.setDefaultOutputDevice(uid: uid)
         }
-        if wantsProcessing {
-            nextRetryAllowedAt = .distantPast
-            attemptStart()
-        }
+        nextRetryAllowedAt = .distantPast
+        reevaluateControlMode()
     }
 
     /// Enables/disables two-way sync with the macOS default output. When
@@ -274,7 +291,7 @@ public final class AppState: ObservableObject {
     }
 
     /// Follows the system default output: retargets the selection (and the
-    /// running pipeline) to whatever macOS is now playing to.
+    /// control mode / pipeline) to whatever macOS is now playing to.
     private func adoptSystemDefaultOutput() {
         guard let systemUID = deviceManager.defaultOutputDeviceUID(),
               !systemUID.hasPrefix(AudioDeviceManager.aggregateUIDPrefix),
@@ -285,34 +302,127 @@ public final class AppState: ObservableObject {
         if pipeline.isRunning {
             stopPipeline(newStatus: .stopped)
         }
+        nextRetryAllowedAt = .distantPast
+        reevaluateControlMode()
+    }
+
+    // MARK: - Control mode (software tap vs. native hardware volume)
+
+    /// Decides, for the currently selected device, whether volume is applied
+    /// in software (fixed-volume displays → tap pipeline) or by driving the
+    /// device's own hardware volume (Mac speakers, headphones, DACs).
+    private func reevaluateControlMode() {
+        guard let uid = selectedDeviceUID else {
+            status = .stopped
+            return
+        }
+        guard let deviceID = CA.deviceID(forUID: uid), CA.isAlive(deviceID) else {
+            // Device gone: keep current mode; disconnect handling and the
+            // devices-changed listener drive recovery.
+            if controlMode == .software {
+                if wantsProcessing { attemptStart() }   // sets outputDisconnected
+            } else {
+                status = .outputDisconnected
+            }
+            return
+        }
+
+        if deviceManager.hasSettableVolume(deviceID) {
+            enterHardwareMode(deviceID: deviceID)
+        } else {
+            enterSoftwareMode()
+        }
+    }
+
+    private func enterHardwareMode(deviceID: AudioObjectID) {
+        if controlMode == .hardware, hardwareDeviceID == deviceID {
+            refreshHardwareVolumeState()
+            return
+        }
+        if pipeline.isRunning {
+            // Native device needs no processing; tearing down the tap also
+            // un-mutes the previous device's direct path.
+            stopPipeline(newStatus: .stopped)
+        }
+        controlMode = .hardware
+        hardwareDeviceID = deviceID
+        mediaKeys.passThroughSoundKeys = true
+        deviceManager.watchSelectedDevice(deviceID)
+        refreshHardwareVolumeState()
+        hardwareMuteFallbackVolume = max(volume, 0.1)
+        status = .nativeVolume
+        clearError()
+        AppLog.devices.info("Hardware-volume mode for current device")
+    }
+
+    private func enterSoftwareMode() {
+        let wasHardware = controlMode == .hardware
+        if wasHardware {
+            controlMode = .software
+            hardwareDeviceID = AudioObjectID(kAudioObjectUnknown)
+            mediaKeys.passThroughSoundKeys = false
+            deviceManager.stopWatchingSelectedDevice()
+            // Restore the app's own saved (software) volume and mute.
+            volume = preferences.volume
+            isMuted = preferences.muted
+            gainProcessor.setTarget(volume: volume, muted: isMuted)
+            AppLog.devices.info("Software-volume mode for current device")
+        }
         if wantsProcessing {
-            nextRetryAllowedAt = .distantPast
-            attemptStart()
+            if !pipeline.isRunning { attemptStart() }
+        } else if !pipeline.isRunning {
+            status = .stopped
+        }
+    }
+
+    /// Pulls the device's actual hardware volume/mute into the UI state
+    /// (also called when the user changes volume elsewhere in macOS).
+    private func refreshHardwareVolumeState() {
+        guard controlMode == .hardware,
+              hardwareDeviceID != AudioObjectID(kAudioObjectUnknown) else { return }
+        if let v = deviceManager.deviceVolume(hardwareDeviceID) {
+            volume = v
+        }
+        if let m = deviceManager.deviceMute(hardwareDeviceID) {
+            isMuted = m
         }
     }
 
     private func handleDevicesChanged() {
         refreshDevices()
-        // Auto-recover when the remembered device returns.
-        guard wantsProcessing, !pipeline.isRunning,
-              let uid = selectedDeviceUID,
+        // Auto-recover when the remembered device returns (either mode).
+        guard let uid = selectedDeviceUID,
               devices.contains(where: { $0.uid == uid }) else { return }
-        attemptStart()
+        let needsRecovery = status == .outputDisconnected
+            || (controlMode == .software && wantsProcessing && !pipeline.isRunning)
+        if needsRecovery {
+            reevaluateControlMode()
+        }
     }
 
     private func handleWatchedDeviceEvent(_ event: AudioDeviceManager.WatchedDeviceEvent) {
         switch event {
         case .aliveChanged(let isAlive):
-            if !isAlive, pipeline.isRunning {
+            guard !isAlive else { return }
+            if pipeline.isRunning {
                 AppLog.devices.warning("Selected device died; stopping pipeline")
                 stopPipeline(newStatus: .outputDisconnected)
+            } else if controlMode == .hardware {
+                AppLog.devices.warning("Hardware-controlled device died")
+                status = .outputDisconnected
             }
         case .sampleRateChanged(let rate):
+            guard controlMode == .software else { return }
             AppLog.devices.info("Sample rate changed to \(rate); rebuilding pipeline")
             scheduleRestart()
         case .streamConfigurationChanged:
+            guard controlMode == .software else { return }
             AppLog.devices.info("Stream configuration changed; rebuilding pipeline")
             scheduleRestart()
+        case .volumeChanged, .muteChanged:
+            // Volume moved elsewhere in macOS (Sound settings, volume keys):
+            // mirror it in the app UI.
+            refreshHardwareVolumeState()
         }
     }
 
@@ -335,15 +445,30 @@ public final class AppState: ObservableObject {
 
     /// Slider and programmatic volume changes. Changing volume while muted
     /// unmutes (matching system behavior).
+    ///
+    /// Hardware mode drives the device's real volume — 100% here is 100% in
+    /// System Settings → Sound, identically. Software mode drives the
+    /// pipeline's gain and persists the app's own volume.
     public func setVolume(_ newValue: Float, unmute: Bool = true) {
         guard newValue.isFinite else { return }
-        volume = min(max(newValue, 0), 1)
-        preferences.volume = volume
+        let clamped = min(max(newValue, 0), 1)
+        volume = clamped
+
+        if controlMode == .hardware {
+            deviceManager.setDeviceVolume(hardwareDeviceID, clamped)
+            if unmute, isMuted {
+                isMuted = false
+                deviceManager.setDeviceMute(hardwareDeviceID, false)
+            }
+            return
+        }
+
+        preferences.volume = clamped
         if unmute, isMuted {
             isMuted = false
             preferences.muted = false
         }
-        gainProcessor.setTarget(volume: volume, muted: isMuted)
+        gainProcessor.setTarget(volume: clamped, muted: isMuted)
     }
 
     public func adjustVolume(by delta: Float) {
@@ -351,6 +476,22 @@ public final class AppState: ObservableObject {
     }
 
     public func toggleMute() {
+        if controlMode == .hardware {
+            let newMuted = !isMuted
+            isMuted = newMuted
+            if !deviceManager.setDeviceMute(hardwareDeviceID, newMuted) {
+                // Device has no mute control: emulate with volume 0.
+                if newMuted {
+                    hardwareMuteFallbackVolume = max(volume, 0.1)
+                    deviceManager.setDeviceVolume(hardwareDeviceID, 0)
+                    volume = 0
+                } else {
+                    deviceManager.setDeviceVolume(hardwareDeviceID, hardwareMuteFallbackVolume)
+                    volume = hardwareMuteFallbackVolume
+                }
+            }
+            return
+        }
         isMuted.toggle()
         preferences.muted = isMuted
         gainProcessor.setTarget(volume: volume, muted: isMuted)
@@ -512,7 +653,6 @@ public final class AppState: ObservableObject {
                            object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                self.wasProcessingBeforeSleep = self.pipeline.isRunning
                 if self.pipeline.isRunning {
                     AppLog.app.info("System sleeping; stopping pipeline")
                     self.stopPipeline(newStatus: .stopped)
@@ -523,13 +663,13 @@ public final class AppState: ObservableObject {
                            object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                guard self.wantsProcessing, self.wasProcessingBeforeSleep else { return }
-                AppLog.app.info("System woke; rebuilding pipeline")
-                // Device IDs may have changed across sleep — attemptStart
-                // re-resolves everything from the persistent UID.
+                AppLog.app.info("System woke; re-evaluating output device")
+                // Device object IDs may have changed across sleep — the
+                // re-evaluation resolves everything from persistent UIDs
+                // and restarts the pipeline only when needed.
                 self.nextRetryAllowedAt = .distantPast
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                    self?.attemptStart()
+                    self?.reevaluateControlMode()
                 }
             }
         }

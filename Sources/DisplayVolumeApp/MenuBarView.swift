@@ -55,7 +55,7 @@ struct MenuBarView: View {
 
     private var statusColor: Color {
         switch appState.status {
-        case .active: return .green
+        case .active, .nativeVolume: return .green
         case .stopped: return .secondary.opacity(0.6)
         case .permissionRequired: return .yellow
         case .outputDisconnected: return .orange
@@ -117,26 +117,37 @@ struct MenuBarView: View {
 
     // MARK: Processing
 
+    @ViewBuilder
     private var processingControl: some View {
-        HStack {
-            if appState.isProcessing {
-                Button {
-                    appState.stopProcessing()
-                } label: {
-                    Label("Stop Processing", systemImage: "stop.fill")
-                        .frame(maxWidth: .infinity)
+        if appState.controlMode == .hardware {
+            // Native-volume device: nothing to start or stop — the slider
+            // drives the device's own volume, exactly like the system one.
+            Label("This device has native volume control — the slider adjusts the system volume directly.",
+                  systemImage: "slider.horizontal.3")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            HStack {
+                if appState.isProcessing {
+                    Button {
+                        appState.stopProcessing()
+                    } label: {
+                        Label("Stop Processing", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    Button {
+                        appState.startProcessing()
+                    } label: {
+                        Label("Start Processing", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .disabled(appState.selectedDeviceUID == nil)
                 }
-            } else {
-                Button {
-                    appState.startProcessing()
-                } label: {
-                    Label("Start Processing", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .disabled(appState.selectedDeviceUID == nil)
             }
+            .controlSize(.large)
         }
-        .controlSize(.large)
     }
 }
 

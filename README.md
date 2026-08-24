@@ -44,6 +44,12 @@ supported process-tap API
   Sound, and changing the Mac's output elsewhere retargets the app — the
   tap only captures audio destined for the selected device, so keeping them
   matched is what makes processing work
+- Automatic per-device control mode: fixed-volume displays get the software
+  tap pipeline; devices with native volume (MacBook speakers, most
+  headphones/DACs) are driven through their real hardware volume instead —
+  100 % in the app is 100 % in System Settings, changes made elsewhere in
+  macOS mirror back into the app, no tap or processing runs, and the
+  volume keys pass through to macOS for fully native behavior
 - Volume slider 0–100 % with perceptual (quadratic) volume curve
 - Mute / unmute, always click-free (10–30 ms gain ramps)
 - Optional keyboard volume-key control (mute / down / up, 5 % steps,

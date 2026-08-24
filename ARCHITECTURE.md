@@ -114,6 +114,28 @@ obeys:
 - Diagnostics are counters incremented atomically on the RT threads and
   *polled* once per second by the UI (`AppState.pollTick`).
 
+## Control modes
+
+`AppState.reevaluateControlMode()` decides, per selected device, how volume
+is applied:
+
+- **Software mode** — the device's output volume is *not* settable
+  (`kAudioDevicePropertyVolumeScalar` absent/read-only on main and channel
+  elements). This is the fixed-volume display case: the tap pipeline below
+  runs and the slider drives `GainProcessor`.
+- **Hardware mode** — the device exposes a settable volume (built-in
+  speakers, most headphones/DACs). No tap, aggregate, or IOProc exists at
+  all; the slider reads/writes `kAudioDevicePropertyVolumeScalar` (and
+  `kAudioDevicePropertyMute`, with a volume-0 fallback) — the very controls
+  the system volume UI uses, so app and system are always identical.
+  External changes arrive via wildcard-element property listeners and
+  update the UI. The media-key tap passes the three sound keys through so
+  macOS handles them natively. The app's saved software volume is left
+  untouched, so switching back to the display restores it.
+
+Mode is re-evaluated on selection change, system-default change (when
+"Match system output device" is on), device (re)connection, and wake.
+
 ## Volume model
 
 - UI volume `v ∈ [0, 1]`, displayed as 0–100 %.

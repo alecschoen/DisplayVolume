@@ -45,6 +45,8 @@ public final class AudioDeviceManager {
         case aliveChanged(isAlive: Bool)
         case sampleRateChanged(newRate: Double)
         case streamConfigurationChanged
+        case volumeChanged
+        case muteChanged
     }
 
     private var systemListenerBlock: AudioObjectPropertyListenerBlock?
@@ -130,6 +132,108 @@ public final class AudioDeviceManager {
         return status == noErr
     }
 
+    // MARK: - Native (hardware) volume control
+
+    /// True when the device exposes a settable output volume — i.e. macOS
+    /// can control it natively and no software processing is needed.
+    /// Fixed-volume displays (the whole reason this app exists) return false.
+    public func hasSettableVolume(_ deviceID: AudioObjectID) -> Bool {
+        !settableElements(deviceID, selector: kAudioDevicePropertyVolumeScalar).isEmpty
+    }
+
+    /// Elements (main, or per-channel 1/2) on which `selector` is settable.
+    private func settableElements(_ deviceID: AudioObjectID,
+                                  selector: AudioObjectPropertySelector)
+        -> [AudioObjectPropertyElement] {
+        var result: [AudioObjectPropertyElement] = []
+        for element in [kAudioObjectPropertyElementMain,
+                        AudioObjectPropertyElement(1),
+                        AudioObjectPropertyElement(2)] {
+            var addr = CA.address(selector, scope: kAudioObjectPropertyScopeOutput,
+                                  element: element)
+            guard AudioObjectHasProperty(deviceID, &addr) else { continue }
+            var settable = DarwinBoolean(false)
+            guard AudioObjectIsPropertySettable(deviceID, &addr, &settable) == noErr,
+                  settable.boolValue else { continue }
+            if element == kAudioObjectPropertyElementMain { return [element] }
+            result.append(element)
+        }
+        return result
+    }
+
+    /// Current hardware output volume (0–1), averaged over channels when the
+    /// device has no main-element control. Nil when unsupported.
+    public func deviceVolume(_ deviceID: AudioObjectID) -> Float? {
+        let elements = settableElements(deviceID, selector: kAudioDevicePropertyVolumeScalar)
+        guard !elements.isEmpty else { return nil }
+        var sum: Float = 0
+        var count = 0
+        for element in elements {
+            var addr = CA.address(kAudioDevicePropertyVolumeScalar,
+                                  scope: kAudioObjectPropertyScopeOutput, element: element)
+            var value = Float32(0)
+            var size = UInt32(MemoryLayout<Float32>.size)
+            if AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &value) == noErr {
+                sum += value
+                count += 1
+            }
+        }
+        guard count > 0 else { return nil }
+        return min(max(sum / Float(count), 0), 1)
+    }
+
+    /// Sets the hardware output volume (0–1). This is the same control the
+    /// system volume UI uses, so the two stay identical.
+    @discardableResult
+    public func setDeviceVolume(_ deviceID: AudioObjectID, _ volume: Float) -> Bool {
+        guard volume.isFinite else { return false }
+        let clamped = min(max(volume, 0), 1)
+        var ok = false
+        for element in settableElements(deviceID, selector: kAudioDevicePropertyVolumeScalar) {
+            var addr = CA.address(kAudioDevicePropertyVolumeScalar,
+                                  scope: kAudioObjectPropertyScopeOutput, element: element)
+            var value = Float32(clamped)
+            if AudioObjectSetPropertyData(deviceID, &addr, 0, nil,
+                                          UInt32(MemoryLayout<Float32>.size), &value) == noErr {
+                ok = true
+            }
+        }
+        return ok
+    }
+
+    /// Hardware mute state; nil when the device has no mute control.
+    public func deviceMute(_ deviceID: AudioObjectID) -> Bool? {
+        let elements = settableElements(deviceID, selector: kAudioDevicePropertyMute)
+        guard let element = elements.first else { return nil }
+        var addr = CA.address(kAudioDevicePropertyMute,
+                              scope: kAudioObjectPropertyScopeOutput, element: element)
+        var value = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &value) == noErr else {
+            return nil
+        }
+        return value != 0
+    }
+
+    /// Sets hardware mute. Returns false when the device has no mute control
+    /// (the caller falls back to volume-based muting).
+    @discardableResult
+    public func setDeviceMute(_ deviceID: AudioObjectID, _ muted: Bool) -> Bool {
+        let elements = settableElements(deviceID, selector: kAudioDevicePropertyMute)
+        guard !elements.isEmpty else { return false }
+        var ok = false
+        for element in elements {
+            var addr = CA.address(kAudioDevicePropertyMute,
+                                  scope: kAudioObjectPropertyScopeOutput, element: element)
+            var value: UInt32 = muted ? 1 : 0
+            if AudioObjectSetPropertyData(deviceID, &addr, 0, nil,
+                                          UInt32(MemoryLayout<UInt32>.size), &value) == noErr {
+                ok = true
+            }
+        }
+        return ok
+    }
+
     // MARK: - System-level listeners
 
     public func startWatchingSystem() {
@@ -191,20 +295,34 @@ public final class AudioDeviceManager {
                 case kAudioDevicePropertyStreamConfiguration,
                      kAudioStreamPropertyVirtualFormat:
                     self.onWatchedDeviceEvent?(.streamConfigurationChanged)
+                case kAudioDevicePropertyVolumeScalar:
+                    self.onWatchedDeviceEvent?(.volumeChanged)
+                case kAudioDevicePropertyMute:
+                    self.onWatchedDeviceEvent?(.muteChanged)
                 default:
                     break
                 }
             }
         }
 
-        let selectors: [(AudioObjectPropertySelector, AudioObjectPropertyScope)] = [
-            (kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal),
-            (kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal),
-            (kAudioDevicePropertyStreamConfiguration, kAudioObjectPropertyScopeOutput),
+        let selectors: [(AudioObjectPropertySelector, AudioObjectPropertyScope,
+                         AudioObjectPropertyElement)] = [
+            (kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+             kAudioObjectPropertyElementMain),
+            (kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal,
+             kAudioObjectPropertyElementMain),
+            (kAudioDevicePropertyStreamConfiguration, kAudioObjectPropertyScopeOutput,
+             kAudioObjectPropertyElementMain),
+            // Wildcard element: hardware volume/mute may live on the main
+            // element or on channels 1/2 depending on the device.
+            (kAudioDevicePropertyVolumeScalar, kAudioObjectPropertyScopeOutput,
+             kAudioObjectPropertyElementWildcard),
+            (kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput,
+             kAudioObjectPropertyElementWildcard),
         ]
         var registered: [AudioObjectPropertyAddress] = []
-        for (selector, scope) in selectors {
-            var addr = CA.address(selector, scope: scope)
+        for (selector, scope, element) in selectors {
+            var addr = CA.address(selector, scope: scope, element: element)
             let status = AudioObjectAddPropertyListenerBlock(deviceID, &addr, .main, block)
             if status == noErr { registered.append(addr) }
         }

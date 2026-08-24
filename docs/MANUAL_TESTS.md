@@ -114,7 +114,22 @@ Check each box only when the observed behavior matches the expectation.
       resumes on the new device.
 - [ ] Turn the toggle OFF → the two selections become independent again.
 
-## 19. One-hour soak
+## 19. Native-volume devices (hardware mode)
+- [ ] Switch the system output to the MacBook speakers → status shows
+      "Active (native volume)", the Start/Stop button is replaced by an
+      explanatory caption, and the slider position matches the current
+      system volume.
+- [ ] Drag the app slider to 100 % → System Settings → Sound shows 100 %;
+      drag to 50 % → system shows 50 %.
+- [ ] Change the volume with the keyboard or the Control Center slider →
+      the app's slider and percentage follow.
+- [ ] Mute in the app → system mutes; unmute restores.
+- [ ] While on the speakers, verify no processing runs (Diagnostics
+      counters stay frozen, no tap-related log noise).
+- [ ] Switch back to the 32X3A → software mode returns with the app's own
+      saved volume, and processing resumes if it was wanted.
+
+## 20. One-hour soak
 - [ ] Play continuous audio for ≥1 hour while Active.
 - [ ] Memory (Activity Monitor) stays flat (no growth trend).
 - [ ] CPU stays below ~5 % for the app during stereo playback.
