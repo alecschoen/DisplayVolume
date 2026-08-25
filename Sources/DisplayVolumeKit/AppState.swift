@@ -62,6 +62,29 @@ public final class AppState: ObservableObject {
     public var volumePercent: Int { Int((volume * 100).rounded()) }
     public var isProcessing: Bool { pipeline.isRunning }
 
+    /// Menu-bar symbol reflecting what's connected (headphones, display,
+    /// speakers, …), with mute and error states taking precedence — the
+    /// same behavior as the system volume icon.
+    public var menuBarIconName: String {
+        if isMuted { return "speaker.slash" }
+        switch status {
+        case .permissionRequired, .outputDisconnected, .audioError:
+            return "speaker.badge.exclamationmark"
+        case .stopped, .active, .nativeVolume:
+            break
+        }
+        let active = status == .active || status == .nativeVolume
+        guard let device = devices.first(where: { $0.uid == selectedDeviceUID }) else {
+            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+        }
+        let symbol = device.kind.menuBarSymbol(active: active)
+        // Device glyphs vary by macOS version; never render a blank icon.
+        if NSImage(systemSymbolName: symbol, accessibilityDescription: nil) == nil {
+            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+        }
+        return symbol
+    }
+
     /// Fired when a media-key press changed volume/mute (either control
     /// mode), so the app layer can show the HUD overlay. The keys are
     /// consumed by the app whenever keyboard control is enabled, so the
@@ -457,6 +480,10 @@ public final class AppState: ObservableObject {
             // Volume moved elsewhere in macOS (Sound settings, volume keys):
             // mirror it in the app UI.
             refreshHardwareVolumeState()
+        case .dataSourceChanged:
+            // Headphones plugged into / removed from the jack: the device's
+            // kind (and thus the menu-bar glyph) may have changed.
+            refreshDevices()
         }
     }
 

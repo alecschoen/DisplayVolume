@@ -111,6 +111,16 @@ public enum CA {
         return abl.reduce(0) { $0 + Int($1.mNumberChannels) }
     }
 
+    /// Current output data source (e.g. 'ispk' internal speaker vs 'hdpn'
+    /// headphones on the built-in codec). Nil when the device has none.
+    public static func outputDataSource(_ deviceID: AudioObjectID) -> UInt32? {
+        let (status, value) = read(deviceID, kAudioDevicePropertyDataSource,
+                                   scope: kAudioObjectPropertyScopeOutput,
+                                   defaultValue: UInt32(0))
+        guard status == noErr else { return nil }
+        return value
+    }
+
     /// IDs of the device's output streams (element order preserved).
     public static func outputStreamIDs(_ deviceID: AudioObjectID) -> [AudioObjectID] {
         readArray(deviceID, kAudioDevicePropertyStreams,

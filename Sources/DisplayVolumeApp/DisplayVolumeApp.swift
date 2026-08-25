@@ -16,21 +16,11 @@ struct DisplayVolumeApp: App {
         } label: {
             // The label renders at launch, so this wires the delegate even
             // if the popover is never opened (shutdown must always run).
-            Image(systemName: menuBarSymbol)
+            Image(systemName: appState.menuBarIconName)
                 .accessibilityLabel("DisplayVolume")
                 .onAppear { appDelegate.appState = appState }
         }
         .menuBarExtraStyle(.window)
-    }
-
-    private var menuBarSymbol: String {
-        if appState.isMuted { return "speaker.slash" }
-        switch appState.status {
-        case .active, .nativeVolume: return "speaker.wave.2.fill"
-        case .stopped: return "speaker.wave.2"
-        case .permissionRequired, .outputDisconnected, .audioError:
-            return "speaker.badge.exclamationmark"
-        }
     }
 }
 

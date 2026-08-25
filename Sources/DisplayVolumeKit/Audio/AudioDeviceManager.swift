@@ -1,6 +1,36 @@
 import CoreAudio
 import Foundation
 
+/// What kind of output a device is — drives the menu-bar glyph so it's
+/// always clear what you're listening on (like the system volume icon).
+public enum OutputDeviceKind: Equatable {
+    case builtinSpeaker
+    case headphones
+    case airPods
+    case airPodsPro
+    case airPodsMax
+    case display
+    case bluetoothSpeaker
+    case airPlay
+    case genericSpeaker
+
+    /// SF Symbol for the menu bar. `active` only affects the speaker
+    /// variants (glyph-only symbols have no fill variant).
+    public func menuBarSymbol(active: Bool) -> String {
+        switch self {
+        case .builtinSpeaker, .genericSpeaker:
+            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+        case .headphones: return "headphones"
+        case .airPods: return "airpods"
+        case .airPodsPro: return "airpodspro"
+        case .airPodsMax: return "airpodsmax"
+        case .display: return "display"
+        case .bluetoothSpeaker: return "hifispeaker"
+        case .airPlay: return "airplayaudio"
+        }
+    }
+}
+
 /// A selectable physical output device.
 public struct AudioOutputDevice: Identifiable, Hashable {
     public let id: AudioObjectID     // Transient! Only the UID is persistent.
@@ -9,6 +39,7 @@ public struct AudioOutputDevice: Identifiable, Hashable {
     public let sampleRate: Double
     public let outputChannelCount: Int
     public let transportType: UInt32
+    public let kind: OutputDeviceKind
 
     public var transportName: String {
         switch transportType {
@@ -47,6 +78,7 @@ public final class AudioDeviceManager {
         case streamConfigurationChanged
         case volumeChanged
         case muteChanged
+        case dataSourceChanged
     }
 
     private var systemListenerBlock: AudioObjectPropertyListenerBlock?
@@ -85,13 +117,16 @@ public final class AudioDeviceManager {
             guard channels > 0 else { continue }
             guard CA.isAlive(deviceID) else { continue }
 
+            let name = CA.objectName(deviceID) ?? uid
+            let transport = CA.transportType(deviceID)
             result.append(AudioOutputDevice(
                 id: deviceID,
                 uid: uid,
-                name: CA.objectName(deviceID) ?? uid,
+                name: name,
                 sampleRate: CA.nominalSampleRate(deviceID),
                 outputChannelCount: channels,
-                transportType: CA.transportType(deviceID)
+                transportType: transport,
+                kind: Self.classify(deviceID: deviceID, name: name, transport: transport)
             ))
         }
         return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -130,6 +165,46 @@ public final class AudioDeviceManager {
             AppLog.devices.error("Setting default output failed: \(status)")
         }
         return status == noErr
+    }
+
+    // MARK: - Device-kind classification
+
+    /// 'hdpn' — the built-in codec's data source when headphones are
+    /// plugged into the jack.
+    private static let headphoneDataSource: UInt32 = 0x6864_706E
+
+    /// Best-effort classification from data source, name, and transport.
+    static func classify(deviceID: AudioObjectID, name: String,
+                         transport: UInt32) -> OutputDeviceKind {
+        let lower = name.lowercased()
+
+        // AirPods variants get their own glyphs, like the system icon.
+        if lower.contains("airpods max") { return .airPodsMax }
+        if lower.contains("airpods pro") { return .airPodsPro }
+        if lower.contains("airpods") { return .airPods }
+
+        // Headphone jack on the built-in codec, or headphone-ish names
+        // on any transport (USB headsets, Bluetooth buds, …).
+        if CA.outputDataSource(deviceID) == headphoneDataSource {
+            return .headphones
+        }
+        for token in ["headphone", "headset", "earbud", "buds", "earphone"]
+        where lower.contains(token) {
+            return .headphones
+        }
+
+        switch transport {
+        case kAudioDeviceTransportTypeDisplayPort, kAudioDeviceTransportTypeHDMI:
+            return .display
+        case kAudioDeviceTransportTypeBuiltIn:
+            return .builtinSpeaker
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
+            return .bluetoothSpeaker
+        case kAudioDeviceTransportTypeAirPlay:
+            return .airPlay
+        default:
+            return .genericSpeaker
+        }
     }
 
     // MARK: - Native (hardware) volume control
@@ -299,6 +374,8 @@ public final class AudioDeviceManager {
                     self.onWatchedDeviceEvent?(.volumeChanged)
                 case kAudioDevicePropertyMute:
                     self.onWatchedDeviceEvent?(.muteChanged)
+                case kAudioDevicePropertyDataSource:
+                    self.onWatchedDeviceEvent?(.dataSourceChanged)
                 default:
                     break
                 }
@@ -319,6 +396,9 @@ public final class AudioDeviceManager {
              kAudioObjectPropertyElementWildcard),
             (kAudioDevicePropertyMute, kAudioObjectPropertyScopeOutput,
              kAudioObjectPropertyElementWildcard),
+            // Headphone jack plug/unplug on the built-in codec.
+            (kAudioDevicePropertyDataSource, kAudioObjectPropertyScopeOutput,
+             kAudioObjectPropertyElementMain),
         ]
         var registered: [AudioObjectPropertyAddress] = []
         for (selector, scope, element) in selectors {
