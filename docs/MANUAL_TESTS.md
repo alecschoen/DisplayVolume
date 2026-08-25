@@ -116,8 +116,8 @@ Check each box only when the observed behavior matches the expectation.
 
 ## 19. Native-volume devices (hardware mode)
 - [ ] Switch the system output to the MacBook speakers → status shows
-      "Active (native volume)", the Start/Stop button is replaced by an
-      explanatory caption, and the slider position matches the current
+      "Active (native volume)", the header's start/stop control disappears
+      (nothing to process), and the slider position matches the current
       system volume.
 - [ ] Drag the app slider to 100 % → System Settings → Sound shows 100 %;
       drag to 50 % → system shows 50 %.

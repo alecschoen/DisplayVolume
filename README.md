@@ -12,7 +12,7 @@ example a TCL <strong>32X3A</strong> connected over USB-C).
 </p>
 
 <p align="center">
-  <img src="docs/images/popover-software.png" width="360" alt="DisplayVolume controlling a fixed-volume DisplayPort monitor">
+  <img src="docs/images/popover-native.png" width="360" alt="The DisplayVolume popover: status, output picker, and volume slider">
 </p>
 
 macOS can send audio to these displays, but the system volume slider does
@@ -74,7 +74,15 @@ the slider simply drives the device's real hardware volume, the exact same
 control as the system slider, in both directions:
 
 <p align="center">
-  <img src="docs/images/popover-native.png" width="360" alt="Native-volume mode on the built-in speakers">
+  <img src="docs/images/popover-speakers.png" width="360" alt="Native-volume mode on the built-in speakers">
+</p>
+
+Left-click the menu-bar icon for the popover above; right-click for a menu
+with Start/Stop Processing, Settings…, and Quit. Settings opens as the same
+kind of flat panel:
+
+<p align="center">
+  <img src="docs/images/settings-panel.png" width="360" alt="The Settings panel: sync, login, keyboard, feedback, and permission controls">
 </p>
 
 With keyboard control enabled, the volume keys are handled by DisplayVolume
@@ -193,15 +201,18 @@ for the hardware test checklist.
 
 ## Usage
 
-1. Launch DisplayVolume — a speaker icon appears in the menu bar.
-2. Pick your display in **Output** (it will normally appear as `32X3A`;
-   any fixed-volume output works).
-3. Press **Start Processing**. On first use macOS asks for
-   **System Audio Recording** permission (this app category is listed under
-   *Privacy & Security → Screen & System Audio Recording*). After granting,
-   press Stop/Start once if audio hasn't started flowing.
-4. Adjust the slider. Optionally enable **Control with keyboard volume
-   keys** — only then will the app ask for Accessibility permission.
+1. Launch DisplayVolume — an icon appears in the menu bar (it shows what
+   you're listening on: display, headphones, speaker, …).
+2. Left-click it and pick your display in **Output** (it will normally
+   appear as `32X3A`; any fixed-volume output works).
+3. Press the **▶ button** in the popover header (or right-click the icon →
+   **Start Processing**). On first use macOS asks for **System Audio
+   Recording** permission (listed under *Privacy & Security → Screen &
+   System Audio Recording*). After granting, stop/start once if audio
+   hasn't started flowing.
+4. Adjust the slider. Right-click → **Settings…** to enable **Control with
+   keyboard volume keys** — only then will the app ask for Accessibility
+   permission.
 
 While processing is active the original (full-volume) audio path is muted
 by the tap's `mutedWhenTapped` behavior, so you only hear the processed
