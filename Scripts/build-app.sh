@@ -51,6 +51,7 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$BIN_PATH" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp SupportFiles/Info.plist "$APP_BUNDLE/Contents/Info.plist"
+cp SupportFiles/AppIcon.icns "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
 
 echo "==> Signing (identity: $CODESIGN_IDENTITY)"

@@ -8,6 +8,8 @@
 	<string>DisplayVolume</string>
 	<key>CFBundleExecutable</key>
 	<string>DisplayVolume</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.bnewable.DisplayVolume</string>
 	<key>CFBundleInfoDictionaryVersion</key>

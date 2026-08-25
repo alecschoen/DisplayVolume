@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		DV00000000000000000000B1 /* DisplayVolumeKit in Frameworks */ = {isa = PBXBuildFile; productRef = DV00000000000000000000P1 /* DisplayVolumeKit */; };
+		DV00000000000000000000B2 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = DV00000000000000000000A4 /* AppIcon.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		DV00000000000000000000A2 /* DisplayVolume.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DisplayVolume.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DV00000000000000000000A4 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = SupportFiles/AppIcon.icns; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -38,6 +40,7 @@
 			isa = PBXGroup;
 			children = (
 				DV00000000000000000000A3 /* DisplayVolumeApp */,
+				DV00000000000000000000A4 /* AppIcon.icns */,
 				DV00000000000000000000A7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -116,6 +119,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DV00000000000000000000B2 /* AppIcon.icns in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
