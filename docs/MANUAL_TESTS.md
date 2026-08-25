@@ -136,8 +136,14 @@ Check each box only when the observed behavior matches the expectation.
 - [ ] Holding the key keeps the bezel refreshed without flicker.
 - [ ] Mute key shows the slashed-speaker bezel.
 - [ ] The bezel never steals focus and clicks pass through it.
-- [ ] On a native-volume device, only the macOS system bezel appears
-      (never two bezels).
+- [ ] With keyboard control ON, the app's bezel (never the macOS one)
+      appears on native-volume devices too, and the keys change the real
+      hardware volume there.
+- [ ] "Play sound on volume keys" ON → the macOS-style pop plays on each
+      press, scaled to the current volume on the fixed-volume display;
+      OFF → silent.
+- [ ] With keyboard control OFF, macOS handles the keys natively again
+      (system bezel on native devices).
 
 ## 21. Per-device volume memory
 - [ ] Set the 32X3A to 30 %, switch to another fixed-volume output (if

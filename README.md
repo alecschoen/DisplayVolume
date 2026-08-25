@@ -77,10 +77,12 @@ control as the system slider, in both directions:
   <img src="docs/images/popover-native.png" width="360" alt="Native-volume mode on the built-in speakers">
 </p>
 
-With keyboard control enabled, the volume keys adjust the software volume
-on fixed-volume displays (with a native-style bezel, below) and pass
-straight through to macOS on everything else. Each display remembers its
-own volume.
+With keyboard control enabled, the volume keys are handled by DisplayVolume
+on every device — software gain on fixed-volume displays, real hardware
+volume on native ones — always with the app's own native-style bezel
+(below) and an optional macOS-style feedback pop, so the experience is
+identical everywhere. Each display remembers its own volume. With keyboard
+control off, the keys fall back to standard macOS handling.
 
 <p align="center">
   <img src="docs/images/volume-hud.png" width="300" alt="Volume HUD overlay">
@@ -108,8 +110,10 @@ own volume.
 - Per-device volume memory: each fixed-volume display remembers its own
   software volume and mute state (native-volume devices are remembered by
   macOS itself)
-- Native-style volume HUD overlay when the media keys adjust the software
-  volume (native-volume devices get the system's own bezel)
+- Native-style volume HUD overlay whenever the volume keys are used, in
+  both control modes, with an optional macOS-style feedback pop
+  (correctly attenuated to the current volume even on fixed-volume
+  displays)
 - Start at Login (`SMAppService`)
 - Automatic recovery on display disconnect/reconnect and sleep/wake
 - Diagnostics panel with copyable report (device, format, underruns, errors)

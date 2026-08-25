@@ -129,9 +129,18 @@ is applied:
   `kAudioDevicePropertyMute`, with a volume-0 fallback) — the very controls
   the system volume UI uses, so app and system are always identical.
   External changes arrive via wildcard-element property listeners and
-  update the UI. The media-key tap passes the three sound keys through so
-  macOS handles them natively. The app's saved software volume is left
-  untouched, so switching back to the display restores it.
+  update the UI. The app's saved software volume is left untouched, so
+  switching back to the display restores it.
+
+In BOTH modes, while keyboard control is enabled, the media-key tap
+consumes the three sound keys and the app applies the change itself
+(software gain or hardware volume), shows its own HUD bezel, and — when
+the "Play sound on volume keys" toggle is on — plays the system feedback
+pop via `VolumeFeedbackPlayer`. The pop is emitted by this process, which
+is excluded from the tap, so on fixed-volume displays it is attenuated in
+the player to the current effective gain (hardware volume covers it on
+native devices). With keyboard control disabled there is no event tap and
+macOS handles the keys natively.
 
 Mode is re-evaluated on selection change, system-default change (when
 "Match system output device" is on), device (re)connection, and wake.

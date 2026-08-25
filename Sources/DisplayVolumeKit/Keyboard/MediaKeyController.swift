@@ -26,12 +26,6 @@ public final class MediaKeyController {
     /// (1-point steps instead of 5).
     public var onKey: ((Key, _ fine: Bool, _ isRepeat: Bool) -> Void)?
 
-    /// When true (the active device has native volume control), the three
-    /// sound keys are passed through untouched so macOS handles them
-    /// natively — bezel, per-device volume, fine-step modifiers and all.
-    /// Set from the main thread; the tap runs on the main run loop.
-    public var passThroughSoundKeys = false
-
     public private(set) var isRunning = false
 
     private var eventTap: CFMachPort?
@@ -157,11 +151,6 @@ public final class MediaKeyController {
         case Self.keyMute: key = .mute
         default:
             // Not a sound key (brightness, play/pause, …): pass through.
-            return Unmanaged.passUnretained(event)
-        }
-
-        // Native-volume device: let macOS handle the keys itself.
-        if passThroughSoundKeys {
             return Unmanaged.passUnretained(event)
         }
 

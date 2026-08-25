@@ -9,6 +9,7 @@ public final class Preferences {
         public static let startAtLogin = "startAtLogin"
         public static let keyboardControlEnabled = "keyboardControlEnabled"
         public static let matchSystemOutput = "matchSystemOutput"
+        public static let volumeFeedbackEnabled = "volumeFeedbackEnabled"
         public static let volumeByDevice = "volumeByDevice"
         public static let mutedByDevice = "mutedByDevice"
         public static let onboardingCompleted = "onboardingCompleted"
@@ -60,6 +61,18 @@ public final class Preferences {
     public var keyboardControlEnabled: Bool {
         get { defaults.bool(forKey: Key.keyboardControlEnabled) }
         set { defaults.set(newValue, forKey: Key.keyboardControlEnabled) }
+    }
+
+    /// Play the system "pop" feedback sound when the volume keys change the
+    /// volume (both control modes). Defaults to true, matching macOS.
+    public var volumeFeedbackEnabled: Bool {
+        get {
+            guard defaults.object(forKey: Key.volumeFeedbackEnabled) != nil else {
+                return true
+            }
+            return defaults.bool(forKey: Key.volumeFeedbackEnabled)
+        }
+        set { defaults.set(newValue, forKey: Key.volumeFeedbackEnabled) }
     }
 
     // MARK: - Per-device software volume/mute

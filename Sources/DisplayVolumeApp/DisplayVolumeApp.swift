@@ -69,8 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Shows the volume bezel whenever the media keys adjust the software
-    /// volume (hardware-mode devices get the system's own HUD instead).
+    /// Shows the volume bezel whenever the media keys adjust the volume in
+    /// either control mode (the app consumes the keys, so the system bezel
+    /// never appears alongside).
     @MainActor
     private func subscribeToHUDEvents() {
         guard let appState else {

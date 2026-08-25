@@ -50,6 +50,7 @@ public final class AppState: ObservableObject {
     @Published public private(set) var startAtLoginEnabled = false
     @Published public private(set) var keyboardControlEnabled: Bool
     @Published public private(set) var matchSystemOutput: Bool
+    @Published public private(set) var volumeFeedbackEnabled: Bool
     @Published public private(set) var controlMode: OutputControlMode = .software
     @Published public private(set) var audioPermissionState: PermissionState = .unknown
     @Published public private(set) var accessibilityPermissionState: PermissionState = .unknown
@@ -61,9 +62,10 @@ public final class AppState: ObservableObject {
     public var volumePercent: Int { Int((volume * 100).rounded()) }
     public var isProcessing: Bool { pipeline.isRunning }
 
-    /// Fired when a media-key press changed volume/mute in software mode,
-    /// so the app layer can show a HUD overlay. (In hardware mode the keys
-    /// pass through and macOS shows its own bezel.)
+    /// Fired when a media-key press changed volume/mute (either control
+    /// mode), so the app layer can show the HUD overlay. The keys are
+    /// consumed by the app whenever keyboard control is enabled, so the
+    /// system bezel never appears alongside it.
     public struct VolumeHUDEvent: Equatable {
         public let volume: Float
         public let muted: Bool
@@ -78,6 +80,7 @@ public final class AppState: ObservableObject {
     private let pipeline: AudioPipeline
     private let mediaKeys = MediaKeyController()
     private let audioPermission = AudioCapturePermission()
+    private let feedbackPlayer = VolumeFeedbackPlayer()
 
     // MARK: Internal state
 
@@ -106,6 +109,7 @@ public final class AppState: ObservableObject {
         isMuted = preferences.muted
         keyboardControlEnabled = preferences.keyboardControlEnabled
         matchSystemOutput = preferences.matchSystemOutput
+        volumeFeedbackEnabled = preferences.volumeFeedbackEnabled
         selectedDeviceUID = preferences.selectedDeviceUID
         showOnboarding = !preferences.onboardingCompleted
 
@@ -168,6 +172,16 @@ public final class AppState: ObservableObject {
             case .mute: self.toggleMute()
             }
             self.hudEvents.send(.init(volume: self.volume, muted: self.isMuted))
+
+            // Feedback pop (volume keys only, like macOS). Software mode:
+            // our audio bypasses the tap, so scale the pop to the effective
+            // gain; hardware mode: the device volume attenuates it for us.
+            if key != .mute, self.volumeFeedbackEnabled, !self.isMuted {
+                let loudness = self.controlMode == .hardware
+                    ? Float(1.0)
+                    : VolumeCurve.gain(forVolume: self.volume)
+                self.feedbackPlayer.play(atVolume: loudness)
+            }
         }
     }
 
@@ -288,6 +302,11 @@ public final class AppState: ObservableObject {
         reevaluateControlMode()
     }
 
+    public func setVolumeFeedbackEnabled(_ enabled: Bool) {
+        volumeFeedbackEnabled = enabled
+        preferences.volumeFeedbackEnabled = enabled
+    }
+
     /// Enables/disables two-way sync with the macOS default output. When
     /// turning it on, the current system output wins.
     public func setMatchSystemOutput(_ enabled: Bool) {
@@ -359,7 +378,6 @@ public final class AppState: ObservableObject {
         }
         controlMode = .hardware
         hardwareDeviceID = deviceID
-        mediaKeys.passThroughSoundKeys = true
         deviceManager.watchSelectedDevice(deviceID)
         refreshHardwareVolumeState()
         hardwareMuteFallbackVolume = max(volume, 0.1)
@@ -373,7 +391,6 @@ public final class AppState: ObservableObject {
         if wasHardware {
             controlMode = .software
             hardwareDeviceID = AudioObjectID(kAudioObjectUnknown)
-            mediaKeys.passThroughSoundKeys = false
             deviceManager.stopWatchingSelectedDevice()
             AppLog.devices.info("Software-volume mode for current device")
         }

@@ -130,6 +130,15 @@ struct PreferencesTests {
         }
     }
 
+    @Test("volume-key feedback defaults to on and persists when turned off")
+    func volumeFeedbackDefaultsOn() {
+        withDefaults { defaults in
+            #expect(Preferences(defaults: defaults).volumeFeedbackEnabled == true)
+            Preferences(defaults: defaults).volumeFeedbackEnabled = false
+            #expect(Preferences(defaults: defaults).volumeFeedbackEnabled == false)
+        }
+    }
+
     @Test("match-system-output defaults to on and persists when turned off")
     func matchSystemOutputDefaultsOn() {
         withDefaults { defaults in

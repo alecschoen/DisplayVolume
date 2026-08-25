@@ -29,6 +29,15 @@ struct SettingsView: View {
             .toggleStyle(.switch)
             .controlSize(.mini)
 
+            Toggle("Play sound on volume keys", isOn: Binding(
+                get: { appState.volumeFeedbackEnabled },
+                set: { appState.setVolumeFeedbackEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .disabled(!appState.keyboardControlEnabled)
+            .help("Plays the macOS volume-change pop when the volume keys are used.")
+
             permissionRow(
                 title: "System Audio Recording",
                 state: appState.audioPermissionState,
@@ -37,16 +46,12 @@ struct SettingsView: View {
                 missingIsProblem: appState.status == .permissionRequired
             )
 
-            // On a native-volume device the sound keys pass through to
-            // macOS, so a missing Accessibility grant only matters in
-            // software mode (fixed-volume display selected).
             permissionRow(
                 title: "Accessibility (volume keys)",
                 state: appState.accessibilityPermissionState,
-                helpWhenMissing: "Needed only for the keyboard volume keys on fixed-volume displays. The slider works without it.",
+                helpWhenMissing: "Needed only for the keyboard volume keys. The slider works without it.",
                 openSettings: { appState.openAccessibilityPermissionSettings() },
                 missingIsProblem: appState.keyboardControlEnabled
-                    && appState.controlMode == .software
                     && appState.accessibilityPermissionState != .granted
             )
         }
