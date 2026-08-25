@@ -1,9 +1,19 @@
-# DisplayVolume
+<p align="center">
+  <img src="docs/images/icon.png" width="128" alt="DisplayVolume icon">
+</p>
 
+<h1 align="center">DisplayVolume</h1>
+
+<p align="center">
 A lightweight macOS menu-bar app that gives you a working volume control for
-**fixed-volume digital audio outputs** — USB-C, DisplayPort, and HDMI
-displays whose built-in speakers ignore the Mac's volume keys (for example a
-TCL **32X3A** connected over USB-C).
+<strong>fixed-volume digital audio outputs</strong> — USB-C, DisplayPort, and
+HDMI displays whose built-in speakers ignore the Mac's volume keys (for
+example a TCL <strong>32X3A</strong> connected over USB-C).
+</p>
+
+<p align="center">
+  <img src="docs/images/popover-software.png" width="360" alt="DisplayVolume controlling a fixed-volume DisplayPort monitor">
+</p>
 
 macOS can send audio to these displays, but the system volume slider does
 nothing, and many of them (including the 32X3A) have broken DDC audio
@@ -34,6 +44,47 @@ your display's audio output (e.g. "32X3A")
 No kernel extensions, no virtual audio drivers, no DDC — only Apple's
 supported process-tap API
 ([Capturing system audio with Core Audio taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps)).
+
+## How it works
+
+Some monitors accept digital audio at one fixed loudness and provide no way
+to change it: macOS's volume slider is grayed out, the volume keys show the
+"prohibited" bezel, and DDC audio commands (the protocol used by tools like
+Lunar/MonitorControl) are broken on many of them. The only universal fix is
+to make the *samples themselves* quieter before they reach the display.
+
+That's what DisplayVolume does. When the active output is a fixed-volume
+display, it asks macOS for a **process tap** — the supported API behind
+system-audio capture — scoped to exactly that device. Every app's audio that
+was headed to the display flows into the tap (macOS mutes the original path
+while the tap is read), DisplayVolume scales the samples with a smooth,
+click-free gain ramp, and plays the result back on the same display through
+a lock-free ring buffer. Total added latency is ~16 ms — irrelevant for
+video. Quit the app (or let it crash) and macOS automatically restores the
+direct audio path; nothing is ever left muted.
+
+The app deliberately excludes **itself** from the tap (otherwise it would
+capture its own playback in a feedback loop), and applies volume with a
+perceptual curve where 100 % is bit-exact passthrough — it can never
+amplify, clip, or degrade audio at full volume.
+
+**Devices that already have working volume** (built-in speakers, most
+headphones and DACs) get the opposite treatment: no tap, no processing —
+the slider simply drives the device's real hardware volume, the exact same
+control as the system slider, in both directions:
+
+<p align="center">
+  <img src="docs/images/popover-native.png" width="360" alt="Native-volume mode on the built-in speakers">
+</p>
+
+With keyboard control enabled, the volume keys adjust the software volume
+on fixed-volume displays (with a native-style bezel, below) and pass
+straight through to macOS on everything else. Each display remembers its
+own volume.
+
+<p align="center">
+  <img src="docs/images/volume-hud.png" width="300" alt="Volume HUD overlay">
+</p>
 
 ## Features
 
