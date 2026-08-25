@@ -22,8 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var appState: AppState?
     private var statusItem: NSStatusItem?
-    private let popover = NSPopover()
-    private var settingsWindow: NSWindow?
+    private var volumePanel: StatusPanelController?
+    private var settingsPanel: StatusPanelController?
     private var onboardingWindow: NSWindow?
     private var volumeHUD: VolumeHUDController?
     private var cancellables = Set<AnyCancellable>()
@@ -39,9 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         setUpStatusItem(with: state)
 
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarView().environmentObject(state))
+        volumePanel = StatusPanelController(
+            content: MenuBarView().environmentObject(state))
+        settingsPanel = StatusPanelController(
+            content: SettingsWindowView().environmentObject(state))
 
         subscribeToHUDEvents(state)
 
@@ -102,12 +103,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func togglePopover() {
         guard let button = statusItem?.button else { return }
-        if popover.isShown {
-            popover.performClose(nil)
+        if volumePanel?.isShown == true {
+            volumePanel?.close()
         } else {
+            settingsPanel?.close()
             appState?.refreshDevices()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            volumePanel?.show(under: button)
         }
     }
 
@@ -115,7 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         guard let item = statusItem, let state = appState else { return }
-        if popover.isShown { popover.performClose(nil) }
+        volumePanel?.close()
+        settingsPanel?.close()
 
         let menu = NSMenu()
 
@@ -162,22 +164,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    // MARK: - Settings window
+    // MARK: - Settings panel
 
+    /// Opens the Settings panel exactly like the volume popover: flat,
+    /// rounded, anchored under the status item.
     @objc func openSettings() {
-        guard let state = appState else { return }
-        if settingsWindow == nil {
-            let hosting = NSHostingController(
-                rootView: SettingsWindowView().environmentObject(state))
-            let window = NSWindow(contentViewController: hosting)
-            window.title = "DisplayVolume Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        guard let button = statusItem?.button else { return }
+        volumePanel?.close()
+        settingsPanel?.show(under: button)
     }
 
     // MARK: - Volume HUD
