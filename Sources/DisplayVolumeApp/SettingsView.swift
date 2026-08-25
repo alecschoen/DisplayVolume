@@ -1,7 +1,24 @@
 import DisplayVolumeKit
 import SwiftUI
 
-/// Settings and permission status, embedded in the menu-bar popover.
+/// The standalone Settings window (opened from the status item's
+/// right-click menu): toggles, permissions, and diagnostics — styled to
+/// match the popover.
+struct SettingsWindowView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsView()
+            Divider()
+            DiagnosticsSection()
+        }
+        .padding(14)
+        .frame(width: 330)
+    }
+}
+
+/// Settings and permission status.
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
 

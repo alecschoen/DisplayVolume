@@ -1,38 +1,25 @@
 import DisplayVolumeKit
 import SwiftUI
 
-/// The menu-bar popover: status, device selection, volume, processing
-/// control, settings, permissions, and diagnostics.
+/// The minimal left-click popover: status, output picker, volume.
+/// Everything else lives in the right-click menu and the Settings window.
 struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             statusHeader
-            Divider()
             deviceSelector
             volumeControls
-            processingControl
             if let message = appState.lastErrorUserMessage {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Divider()
-            SettingsView()
-            Divider()
-            DiagnosticsSection()
-            Divider()
-            HStack {
-                Spacer()
-                Button("Quit DisplayVolume") {
-                    NSApp.terminate(nil)
-                }
-            }
         }
         .padding(12)
-        .frame(width: 320)
+        .frame(width: 300)
         .onAppear { appState.refreshDevices() }
     }
 
@@ -46,6 +33,23 @@ struct MenuBarView: View {
             Text(appState.status.displayName)
                 .font(.headline)
             Spacer()
+            // Compact start/stop for the software pipeline — the slider
+            // only has an effect while processing runs.
+            if appState.controlMode == .software {
+                Button {
+                    if appState.isProcessing {
+                        appState.stopProcessing()
+                    } else {
+                        appState.startProcessing()
+                    }
+                } label: {
+                    Image(systemName: appState.isProcessing ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.borderless)
+                .disabled(appState.selectedDeviceUID == nil)
+                .help(appState.isProcessing ? "Stop processing" : "Start processing")
+            }
             Text("\(appState.volumePercent)%")
                 .font(.headline)
                 .monospacedDigit()
@@ -112,41 +116,6 @@ struct MenuBarView: View {
             Image(systemName: "speaker.wave.3.fill")
                 .foregroundStyle(.secondary)
                 .font(.caption)
-        }
-    }
-
-    // MARK: Processing
-
-    @ViewBuilder
-    private var processingControl: some View {
-        if appState.controlMode == .hardware {
-            // Native-volume device: nothing to start or stop — the slider
-            // drives the device's own volume, exactly like the system one.
-            Label("This device has native volume control — the slider adjusts the system volume directly.",
-                  systemImage: "slider.horizontal.3")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            HStack {
-                if appState.isProcessing {
-                    Button {
-                        appState.stopProcessing()
-                    } label: {
-                        Label("Stop Processing", systemImage: "stop.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                } else {
-                    Button {
-                        appState.startProcessing()
-                    } label: {
-                        Label("Start Processing", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(appState.selectedDeviceUID == nil)
-                }
-            }
-            .controlSize(.large)
         }
     }
 }
