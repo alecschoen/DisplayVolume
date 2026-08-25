@@ -173,7 +173,13 @@ public final class AudioDeviceManager {
     /// plugged into the jack.
     private static let headphoneDataSource: UInt32 = 0x6864_706E
 
-    /// Best-effort classification from data source, name, and transport.
+    /// Classification, in order of signal reliability:
+    ///  1. AirPods names (they'd otherwise classify as plain headphones)
+    ///  2. the stream's terminal type — Core Audio's own statement of what
+    ///     is physically connected (headphones / HDMI / DisplayPort)
+    ///  3. the built-in codec's data source (headphone jack)
+    ///  4. headphone-ish names (fallback for devices with no terminal type)
+    ///  5. transport type
     static func classify(deviceID: AudioObjectID, name: String,
                          transport: UInt32) -> OutputDeviceKind {
         let lower = name.lowercased()
@@ -182,6 +188,16 @@ public final class AudioDeviceManager {
         if lower.contains("airpods max") { return .airPodsMax }
         if lower.contains("airpods pro") { return .airPodsPro }
         if lower.contains("airpods") { return .airPods }
+
+        switch CA.outputTerminalType(deviceID) {
+        case .some(kAudioStreamTerminalTypeHeadphones):
+            return .headphones
+        case .some(kAudioStreamTerminalTypeHDMI),
+             .some(kAudioStreamTerminalTypeDisplayPort):
+            return .display
+        default:
+            break
+        }
 
         // Headphone jack on the built-in codec, or headphone-ish names
         // on any transport (USB headsets, Bluetooth buds, …).

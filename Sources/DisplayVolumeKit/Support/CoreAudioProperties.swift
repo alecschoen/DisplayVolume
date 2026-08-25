@@ -121,6 +121,18 @@ public enum CA {
         return value
     }
 
+    /// Terminal type of the device's first output stream — the most
+    /// reliable "what is physically on the other end" signal Core Audio
+    /// offers (e.g. kAudioStreamTerminalTypeHeadphones for earbuds whose
+    /// names give nothing away). Nil when unavailable.
+    public static func outputTerminalType(_ deviceID: AudioObjectID) -> UInt32? {
+        guard let stream = outputStreamIDs(deviceID).first else { return nil }
+        let (status, value) = read(stream, kAudioStreamPropertyTerminalType,
+                                   defaultValue: UInt32(0))
+        guard status == noErr, value != 0 else { return nil }
+        return value
+    }
+
     /// IDs of the device's output streams (element order preserved).
     public static func outputStreamIDs(_ deviceID: AudioObjectID) -> [AudioObjectID] {
         readArray(deviceID, kAudioDevicePropertyStreams,
