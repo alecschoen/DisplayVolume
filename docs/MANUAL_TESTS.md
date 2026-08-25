@@ -129,7 +129,23 @@ Check each box only when the observed behavior matches the expectation.
 - [ ] Switch back to the 32X3A → software mode returns with the app's own
       saved volume, and processing resumes if it was wanted.
 
-## 20. One-hour soak
+## 20. Volume HUD overlay
+- [ ] On the 32X3A with keyboard control enabled, press volume up/down →
+      a translucent bezel appears bottom-center with icon, level bar, and
+      percentage, then fades out after ~1.5 s.
+- [ ] Holding the key keeps the bezel refreshed without flicker.
+- [ ] Mute key shows the slashed-speaker bezel.
+- [ ] The bezel never steals focus and clicks pass through it.
+- [ ] On a native-volume device, only the macOS system bezel appears
+      (never two bezels).
+
+## 21. Per-device volume memory
+- [ ] Set the 32X3A to 30 %, switch to another fixed-volume output (if
+      available) and set it to 80 %, switch back → 32X3A returns at 30 %.
+- [ ] Mute state is likewise remembered per device.
+- [ ] Quit and relaunch → per-device values survive.
+
+## 22. One-hour soak
 - [ ] Play continuous audio for ≥1 hour while Active.
 - [ ] Memory (Activity Monitor) stays flat (no growth trend).
 - [ ] CPU stays below ~5 % for the app during stereo playback.

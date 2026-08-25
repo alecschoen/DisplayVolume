@@ -81,6 +81,55 @@ struct PreferencesTests {
         }
     }
 
+    @Test("per-device volume persists independently for each device")
+    func perDeviceVolume() {
+        withDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            prefs.setVolume(0.3, forDevice: "monitor-A")
+            prefs.setVolume(0.9, forDevice: "monitor-B")
+            let reloaded = Preferences(defaults: defaults)
+            #expect(abs(reloaded.volume(forDevice: "monitor-A") - 0.3) < 1e-6)
+            #expect(abs(reloaded.volume(forDevice: "monitor-B") - 0.9) < 1e-6)
+        }
+    }
+
+    @Test("unknown device falls back to the legacy volume, then 50%")
+    func perDeviceVolumeFallback() {
+        withDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            // Nothing saved at all → 50% default.
+            #expect(prefs.volume(forDevice: "never-seen") == 0.5)
+            // Legacy value present → new devices inherit it.
+            prefs.volume = 0.7
+            #expect(abs(prefs.volume(forDevice: "never-seen") - 0.7) < 1e-6)
+        }
+    }
+
+    @Test("per-device volume writes are sanitized and clamped")
+    func perDeviceVolumeSanitized() {
+        withDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            prefs.setVolume(0.4, forDevice: "dev")
+            prefs.setVolume(.nan, forDevice: "dev")
+            #expect(abs(prefs.volume(forDevice: "dev") - 0.4) < 1e-6)
+            prefs.setVolume(7, forDevice: "dev")
+            #expect(prefs.volume(forDevice: "dev") == 1.0)
+        }
+    }
+
+    @Test("per-device mute persists independently and falls back to legacy")
+    func perDeviceMute() {
+        withDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            prefs.setMuted(true, forDevice: "monitor-A")
+            #expect(prefs.muted(forDevice: "monitor-A") == true)
+            #expect(prefs.muted(forDevice: "monitor-B") == prefs.muted,
+                    "unseen device falls back to the legacy mute value")
+            prefs.setMuted(false, forDevice: "monitor-A")
+            #expect(Preferences(defaults: defaults).muted(forDevice: "monitor-A") == false)
+        }
+    }
+
     @Test("match-system-output defaults to on and persists when turned off")
     func matchSystemOutputDefaultsOn() {
         withDefaults { defaults in

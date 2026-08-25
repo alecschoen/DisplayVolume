@@ -61,6 +61,15 @@ public final class AppState: ObservableObject {
     public var volumePercent: Int { Int((volume * 100).rounded()) }
     public var isProcessing: Bool { pipeline.isRunning }
 
+    /// Fired when a media-key press changed volume/mute in software mode,
+    /// so the app layer can show a HUD overlay. (In hardware mode the keys
+    /// pass through and macOS shows its own bezel.)
+    public struct VolumeHUDEvent: Equatable {
+        public let volume: Float
+        public let muted: Bool
+    }
+    public let hudEvents = PassthroughSubject<VolumeHUDEvent, Never>()
+
     // MARK: Components
 
     private let preferences: Preferences
@@ -109,6 +118,9 @@ public final class AppState: ObservableObject {
             preferences.selectedDeviceUID = systemUID
         }
 
+        // Now that the selection is final, load that device's saved volume.
+        volume = preferences.volume(forDevice: selectedDeviceUID)
+        isMuted = preferences.muted(forDevice: selectedDeviceUID)
         gainProcessor.setTarget(volume: volume, muted: isMuted)
 
         // Defense in depth against interrupted previous launches.
@@ -155,6 +167,7 @@ public final class AppState: ObservableObject {
             case .volumeDown: self.adjustVolume(by: -step)
             case .mute: self.toggleMute()
             }
+            self.hudEvents.send(.init(volume: self.volume, muted: self.isMuted))
         }
     }
 
@@ -362,12 +375,14 @@ public final class AppState: ObservableObject {
             hardwareDeviceID = AudioObjectID(kAudioObjectUnknown)
             mediaKeys.passThroughSoundKeys = false
             deviceManager.stopWatchingSelectedDevice()
-            // Restore the app's own saved (software) volume and mute.
-            volume = preferences.volume
-            isMuted = preferences.muted
-            gainProcessor.setTarget(volume: volume, muted: isMuted)
             AppLog.devices.info("Software-volume mode for current device")
         }
+        // Load THIS device's saved volume/mute (per-device memory). Values
+        // are write-through on change, so reloading is always idempotent.
+        volume = preferences.volume(forDevice: selectedDeviceUID)
+        isMuted = preferences.muted(forDevice: selectedDeviceUID)
+        gainProcessor.setTarget(volume: volume, muted: isMuted)
+
         if wantsProcessing {
             if !pipeline.isRunning { attemptStart() }
         } else if !pipeline.isRunning {
@@ -463,10 +478,10 @@ public final class AppState: ObservableObject {
             return
         }
 
-        preferences.volume = clamped
+        preferences.setVolume(clamped, forDevice: selectedDeviceUID)
         if unmute, isMuted {
             isMuted = false
-            preferences.muted = false
+            preferences.setMuted(false, forDevice: selectedDeviceUID)
         }
         gainProcessor.setTarget(volume: clamped, muted: isMuted)
     }
@@ -493,7 +508,7 @@ public final class AppState: ObservableObject {
             return
         }
         isMuted.toggle()
-        preferences.muted = isMuted
+        preferences.setMuted(isMuted, forDevice: selectedDeviceUID)
         gainProcessor.setTarget(volume: volume, muted: isMuted)
     }
 

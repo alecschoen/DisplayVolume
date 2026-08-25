@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import DisplayVolumeKit
 import SwiftUI
 
@@ -37,8 +38,15 @@ struct DisplayVolumeApp: App {
 /// policy (menu-bar only, no Dock icon — also when running the bare SPM
 /// binary), the one-time onboarding window, and clean teardown on quit.
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    weak var appState: AppState?
+    weak var appState: AppState? {
+        didSet {
+            // Only ever set from SwiftUI's onAppear on the main thread.
+            MainActor.assumeIsolated { subscribeToHUDEvents() }
+        }
+    }
     private var onboardingWindow: NSWindow?
+    private var volumeHUD: VolumeHUDController?
+    private var hudCancellable: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -59,6 +67,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             appState?.shutdown()
         }
+    }
+
+    /// Shows the volume bezel whenever the media keys adjust the software
+    /// volume (hardware-mode devices get the system's own HUD instead).
+    @MainActor
+    private func subscribeToHUDEvents() {
+        guard let appState else {
+            hudCancellable = nil
+            return
+        }
+        hudCancellable = appState.hudEvents
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] event in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    if self.volumeHUD == nil {
+                        self.volumeHUD = VolumeHUDController()
+                    }
+                    self.volumeHUD?.show(volume: event.volume, muted: event.muted)
+                }
+            }
     }
 
     func showOnboarding() {

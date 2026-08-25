@@ -54,6 +54,11 @@ supported process-tap API
 - Mute / unmute, always click-free (10–30 ms gain ramps)
 - Optional keyboard volume-key control (mute / down / up, 5 % steps,
   ⌥⇧ for 1 % fine steps) — narrowly scoped to the three sound keys only
+- Per-device volume memory: each fixed-volume display remembers its own
+  software volume and mute state (native-volume devices are remembered by
+  macOS itself)
+- Native-style volume HUD overlay when the media keys adjust the software
+  volume (native-volume devices get the system's own bezel)
 - Start at Login (`SMAppService`)
 - Automatic recovery on display disconnect/reconnect and sleep/wake
 - Diagnostics panel with copyable report (device, format, underruns, errors)

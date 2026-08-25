@@ -9,6 +9,8 @@ public final class Preferences {
         public static let startAtLogin = "startAtLogin"
         public static let keyboardControlEnabled = "keyboardControlEnabled"
         public static let matchSystemOutput = "matchSystemOutput"
+        public static let volumeByDevice = "volumeByDevice"
+        public static let mutedByDevice = "mutedByDevice"
         public static let onboardingCompleted = "onboardingCompleted"
         public static let processingWasActive = "processingWasActive"
     }
@@ -58,6 +60,54 @@ public final class Preferences {
     public var keyboardControlEnabled: Bool {
         get { defaults.bool(forKey: Key.keyboardControlEnabled) }
         set { defaults.set(newValue, forKey: Key.keyboardControlEnabled) }
+    }
+
+    // MARK: - Per-device software volume/mute
+
+    /// Saved software volume for a specific device UID. Devices never seen
+    /// before fall back to the legacy single `volume` value (which itself
+    /// defaults to 50%), so behavior is continuous across upgrades and the
+    /// app still never starts at 100%.
+    public func volume(forDevice uid: String?) -> Float {
+        guard let uid,
+              let dict = defaults.dictionary(forKey: Key.volumeByDevice),
+              let raw = dict[uid] as? Double else {
+            return volume
+        }
+        let value = Float(raw)
+        guard value.isFinite else { return Self.defaultVolume }
+        return min(max(value, 0), 1)
+    }
+
+    /// Persists the software volume for `uid` (and mirrors it into the
+    /// legacy key, which doubles as the fallback for new devices).
+    public func setVolume(_ newValue: Float, forDevice uid: String?) {
+        guard newValue.isFinite else { return }
+        let clamped = min(max(newValue, 0), 1)
+        volume = clamped
+        guard let uid else { return }
+        var dict = defaults.dictionary(forKey: Key.volumeByDevice) ?? [:]
+        dict[uid] = Double(clamped)
+        defaults.set(dict, forKey: Key.volumeByDevice)
+    }
+
+    /// Saved software mute state for a specific device UID; falls back to
+    /// the legacy single `muted` value for devices never seen before.
+    public func muted(forDevice uid: String?) -> Bool {
+        guard let uid,
+              let dict = defaults.dictionary(forKey: Key.mutedByDevice),
+              let value = dict[uid] as? Bool else {
+            return muted
+        }
+        return value
+    }
+
+    public func setMuted(_ newValue: Bool, forDevice uid: String?) {
+        muted = newValue
+        guard let uid else { return }
+        var dict = defaults.dictionary(forKey: Key.mutedByDevice) ?? [:]
+        dict[uid] = newValue
+        defaults.set(dict, forKey: Key.mutedByDevice)
     }
 
     /// Keep the app's selected device in sync with the macOS default output
