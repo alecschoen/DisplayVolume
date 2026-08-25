@@ -88,7 +88,7 @@ public final class AppState: ObservableObject {
     private var nextRetryAllowedAt = Date.distantPast
     private var pendingRestart: DispatchWorkItem?
     private var pollTimer: Timer?
-    private var lastInputCallbackCount: UInt64 = 0
+    private var lastOutputCallbackCount: UInt64 = 0
     private var stalledTicks = 0
 
     /// Device driven directly in hardware mode (transient object ID).
@@ -207,7 +207,7 @@ public final class AppState: ObservableObject {
             deviceManager.watchSelectedDevice(pipeline.currentDeviceID)
             consecutiveStartFailures = 0
             stalledTicks = 0
-            lastInputCallbackCount = 0
+            lastOutputCallbackCount = 0
             status = .active
             clearError()
             AppLog.app.info("Processing started")
@@ -644,22 +644,27 @@ public final class AppState: ObservableObject {
             try? mediaKeys.start()
         }
 
-        // Watchdog: IO callbacks must keep arriving while active. A stall
-        // means the device or aggregate silently died.
+        // Watchdog: the OUTPUT renderer must keep cycling while active — it
+        // runs continuously on the physical device (rendering silence when
+        // there is no input), so a stall there means the device genuinely
+        // died. The tap's INPUT callbacks deliberately go idle whenever no
+        // process is playing audio; that is normal silence, never a fault
+        // (watching them here caused false "Audio error" flaps during quiet
+        // periods).
         if pipeline.isRunning {
-            if stats.inputCallbacks == lastInputCallbackCount {
+            if stats.outputCallbacks == lastOutputCallbackCount {
                 stalledTicks += 1
                 if stalledTicks >= 4 {
-                    AppLog.audio.error("IO stalled (no input callbacks for \(self.stalledTicks)s)")
-                    recordError(userMessage: "Audio capture stopped unexpectedly.",
-                                technical: "Input IOProc stalled for \(stalledTicks)s; pipeline rebuilt on next device event")
-                    stopPipeline(newStatus: .audioError("Audio capture stalled"))
+                    AppLog.audio.error("Output IO stalled for \(self.stalledTicks)s")
+                    recordError(userMessage: "Audio output stopped unexpectedly.",
+                                technical: "Output IOProc stalled for \(stalledTicks)s; pipeline rebuilt on next device event")
+                    stopPipeline(newStatus: .audioError("Audio output stalled"))
                     stalledTicks = 0
                 }
             } else {
                 stalledTicks = 0
             }
-            lastInputCallbackCount = stats.inputCallbacks
+            lastOutputCallbackCount = stats.outputCallbacks
         }
     }
 
