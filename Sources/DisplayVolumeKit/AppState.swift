@@ -150,6 +150,14 @@ public final class AppState: ObservableObject {
         isMuted = preferences.muted(forDevice: selectedDeviceUID)
         gainProcessor.setTarget(volume: volume, muted: isMuted)
 
+        // Restore the persisted System Audio Recording verdict so the UI
+        // doesn't show "Unknown" every launch until audio happens to flow.
+        switch preferences.audioCaptureGranted {
+        case .some(true): audioPermission.noteNonSilentAudioObserved()
+        case .some(false): audioPermission.noteTapCreationFailed()
+        case .none: break
+        }
+
         // Defense in depth against interrupted previous launches.
         AggregateDeviceController.destroyStaleAggregates()
 
@@ -159,6 +167,7 @@ public final class AppState: ObservableObject {
         observeWorkspaceNotifications()
         startAtLoginEnabled = SMAppService.mainApp.status == .enabled
         accessibilityPermissionState = AccessibilityPermission.state
+        audioPermissionState = audioPermission.state
         startPollTimer()
 
         // Resume intent only if processing was active at last quit
@@ -275,6 +284,9 @@ public final class AppState: ObservableObject {
             status = .outputDisconnected
         case .tapCreationFailed:
             audioPermission.noteTapCreationFailed()
+            if audioPermission.state == .denied {
+                preferences.audioCaptureGranted = false
+            }
             status = audioPermission.state == .denied ? .permissionRequired
                                                       : .audioError(error.errorDescription ?? "")
         case .systemAudioPermissionMissing:
@@ -673,8 +685,10 @@ public final class AppState: ObservableObject {
         refreshStats()
 
         // Permission inference: real audio flowed through the tap.
+        // Persist the verdict so future launches start from "Granted".
         if stats.nonSilentInputSeen, audioPermissionState != .granted {
             audioPermission.noteNonSilentAudioObserved()
+            preferences.audioCaptureGranted = true
         }
         refreshPermissionStates()
 

@@ -10,6 +10,7 @@ public final class Preferences {
         public static let keyboardControlEnabled = "keyboardControlEnabled"
         public static let matchSystemOutput = "matchSystemOutput"
         public static let volumeFeedbackEnabled = "volumeFeedbackEnabled"
+        public static let audioCaptureGranted = "audioCaptureGranted"
         public static let volumeByDevice = "volumeByDevice"
         public static let mutedByDevice = "mutedByDevice"
         public static let onboardingCompleted = "onboardingCompleted"
@@ -73,6 +74,21 @@ public final class Preferences {
             return defaults.bool(forKey: Key.volumeFeedbackEnabled)
         }
         set { defaults.set(newValue, forKey: Key.volumeFeedbackEnabled) }
+    }
+
+    /// Last inferred System Audio Recording verdict (macOS has no query
+    /// API). nil = never determined; true = audio has flowed through the
+    /// tap at least once; false = a tap creation failed. Persisting this is
+    /// sound because TCC grants are tied to the (stable) code signature.
+    public var audioCaptureGranted: Bool? {
+        get { defaults.object(forKey: Key.audioCaptureGranted) as? Bool }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Key.audioCaptureGranted)
+            } else {
+                defaults.removeObject(forKey: Key.audioCaptureGranted)
+            }
+        }
     }
 
     // MARK: - Per-device software volume/mute

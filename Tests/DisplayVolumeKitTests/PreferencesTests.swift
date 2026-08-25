@@ -130,6 +130,20 @@ struct PreferencesTests {
         }
     }
 
+    @Test("audio-capture verdict is tri-state: unknown, granted, denied")
+    func audioCaptureVerdict() {
+        withDefaults { defaults in
+            let prefs = Preferences(defaults: defaults)
+            #expect(prefs.audioCaptureGranted == nil, "starts undetermined")
+            prefs.audioCaptureGranted = true
+            #expect(Preferences(defaults: defaults).audioCaptureGranted == true)
+            prefs.audioCaptureGranted = false
+            #expect(Preferences(defaults: defaults).audioCaptureGranted == false)
+            prefs.audioCaptureGranted = nil
+            #expect(Preferences(defaults: defaults).audioCaptureGranted == nil)
+        }
+    }
+
     @Test("volume-key feedback defaults to on and persists when turned off")
     func volumeFeedbackDefaultsOn() {
         withDefaults { defaults in
