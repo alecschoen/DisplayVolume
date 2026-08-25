@@ -171,7 +171,7 @@ A tap/output rate mismatch at startup is rejected with a typed error.
 | Sleep | pipeline stopped on `willSleep` |
 | Wake | after 1.5 s, device re-resolved **by UID** (object IDs are invalid across sleep) and the pipeline is rebuilt with the saved volume ramping up from silence |
 | Sample-rate / stream-format change | debounced stop + rebuild |
-| IO stall (no callbacks for 4 s) | watchdog stops the pipeline, surfaces "Audio error" |
+| Output IO stall (no renderer callbacks for 4 s) | watchdog stops the pipeline, surfaces "Audio error". (Tap *input* callbacks are deliberately not watched: they go idle whenever no process is playing audio — that is normal silence, not a fault.) |
 | Tap creation fails | typed error; treated as permission denial if audio was never observed |
 | App quits/crashes | tap + aggregate are destroyed (explicitly, or by the HAL because both are private) → direct audio resumes automatically |
 
