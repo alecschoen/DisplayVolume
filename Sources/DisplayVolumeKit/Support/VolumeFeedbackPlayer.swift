@@ -12,12 +12,15 @@ import Foundation
 public final class VolumeFeedbackPlayer {
 
     private let sound: NSSound?
+    private var lastPlayed = Date.distantPast
+
+    /// Minimum spacing between pops so rapid presses stay pleasant.
+    private let minimumInterval: TimeInterval = 0.12
 
     public init() {
-        // The genuine system feedback sound, with a similar-sounding
-        // built-in alert as fallback should Apple move it.
+        // "Tink" (user-chosen) with a fallback should Apple move it.
         let candidates = [
-            "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff",
+            "/System/Library/Sounds/Tink.aiff",
             "/System/Library/Sounds/Pop.aiff",
         ]
         var loaded: NSSound?
@@ -33,11 +36,14 @@ public final class VolumeFeedbackPlayer {
         }
     }
 
-    /// Plays the pop at the given loudness (0–1). Safe to call rapidly
-    /// (key repeat): a still-playing pop is restarted.
+    /// Plays the pop at the given loudness (0–1). Rapid calls are
+    /// rate-limited so bursts of presses never machine-gun.
     public func play(atVolume volume: Float) {
         guard let sound else { return }
         guard volume.isFinite, volume > 0 else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastPlayed) >= minimumInterval else { return }
+        lastPlayed = now
         if sound.isPlaying {
             sound.stop()
         }

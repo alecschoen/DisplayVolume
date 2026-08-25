@@ -163,7 +163,7 @@ public final class AppState: ObservableObject {
         deviceManager.onWatchedDeviceEvent = { [weak self] event in
             self?.handleWatchedDeviceEvent(event)
         }
-        mediaKeys.onKey = { [weak self] key, fine, _ in
+        mediaKeys.onKey = { [weak self] key, fine, isRepeat in
             guard let self else { return }
             let step: Float = fine ? 0.01 : 0.05
             switch key {
@@ -173,10 +173,12 @@ public final class AppState: ObservableObject {
             }
             self.hudEvents.send(.init(volume: self.volume, muted: self.isMuted))
 
-            // Feedback pop (volume keys only, like macOS). Software mode:
-            // our audio bypasses the tap, so scale the pop to the effective
-            // gain; hardware mode: the device volume attenuates it for us.
-            if key != .mute, self.volumeFeedbackEnabled, !self.isMuted {
+            // Feedback pop: volume keys only (like macOS), and only on
+            // discrete presses — holding a key ramps silently instead of
+            // machine-gunning the sound. Software mode: our audio bypasses
+            // the tap, so scale the pop to the effective gain; hardware
+            // mode: the device volume attenuates it for us.
+            if key != .mute, !isRepeat, self.volumeFeedbackEnabled, !self.isMuted {
                 let loudness = self.controlMode == .hardware
                     ? Float(1.0)
                     : VolumeCurve.gain(forVolume: self.volume)
