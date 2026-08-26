@@ -93,7 +93,7 @@ identical everywhere. Each display remembers its own volume. With keyboard
 control off, the keys fall back to standard macOS handling.
 
 <p align="center">
-  <img src="docs/images/volume-hud.png" width="300" alt="Volume HUD overlay">
+  <img src="docs/images/volume-hud.png" width="420" alt="Volume HUD overlay — translucent bezel blurring the content behind it">
 </p>
 
 ## Features
