@@ -12,7 +12,7 @@ example a TCL <strong>32X3A</strong> connected over USB-C).
 </p>
 
 <p align="center">
-  <img src="docs/images/popover-native.png" width="360" alt="The DisplayVolume popover: status, output picker, and volume slider">
+  <img src="docs/images/popover-monitor.png" width="400" alt="DisplayVolume actively processing a fixed-volume DisplayPort monitor — note the display glyph in the menu bar">
 </p>
 
 macOS can send audio to these displays, but the system volume slider does
@@ -74,7 +74,7 @@ the slider simply drives the device's real hardware volume, the exact same
 control as the system slider, in both directions:
 
 <p align="center">
-  <img src="docs/images/popover-speakers.png" width="360" alt="Native-volume mode on the built-in speakers">
+  <img src="docs/images/popover-native.png" width="400" alt="Native-volume mode on the built-in speakers">
 </p>
 
 Left-click the menu-bar icon for the popover above; right-click for a menu
