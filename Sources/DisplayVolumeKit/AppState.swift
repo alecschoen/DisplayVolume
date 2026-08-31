@@ -74,13 +74,18 @@ public final class AppState: ObservableObject {
             break
         }
         let active = status == .active || status == .nativeVolume
-        guard let device = devices.first(where: { $0.uid == selectedDeviceUID }) else {
-            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+        // 0 %: show the bare wave-less speaker regardless of device kind,
+        // so "no sound" is visible at a glance (matches the system icon).
+        if volume < 0.005 {
+            return active ? "speaker.fill" : "speaker"
         }
-        let symbol = device.kind.menuBarSymbol(active: active)
+        guard let device = devices.first(where: { $0.uid == selectedDeviceUID }) else {
+            return OutputDeviceKind.speakerSymbol(forVolume: volume, active: active)
+        }
+        let symbol = device.kind.menuBarSymbol(active: active, volume: volume)
         // Device glyphs vary by macOS version; never render a blank icon.
         if NSImage(systemSymbolName: symbol, accessibilityDescription: nil) == nil {
-            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+            return OutputDeviceKind.speakerSymbol(forVolume: volume, active: active)
         }
         return symbol
     }

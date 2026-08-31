@@ -47,4 +47,14 @@ struct DeviceKindTests {
             #expect(!kind.menuBarSymbol(active: false).isEmpty)
         }
     }
+
+    @Test("speaker waves scale with volume and vanish at 0%")
+    func speakerWavesScale() {
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 0, active: false) == "speaker")
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 0, active: true) == "speaker.fill")
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 0.2, active: true) == "speaker.wave.1.fill")
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 0.5, active: true) == "speaker.wave.2.fill")
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 0.9, active: true) == "speaker.wave.3.fill")
+        #expect(OutputDeviceKind.speakerSymbol(forVolume: 1.0, active: false) == "speaker.wave.3")
+    }
 }

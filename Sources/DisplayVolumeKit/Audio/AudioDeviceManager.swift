@@ -14,12 +14,26 @@ public enum OutputDeviceKind: Equatable {
     case airPlay
     case genericSpeaker
 
-    /// SF Symbol for the menu bar. `active` only affects the speaker
-    /// variants (glyph-only symbols have no fill variant).
-    public func menuBarSymbol(active: Bool) -> String {
+    /// Speaker glyph whose wave count scales with the volume, like the
+    /// system icon: none at 0 %, one/two/three waves as it rises.
+    public static func speakerSymbol(forVolume volume: Float, active: Bool) -> String {
+        let base: String
+        switch volume {
+        case ..<0.005: base = "speaker"
+        case ..<0.34: base = "speaker.wave.1"
+        case ..<0.67: base = "speaker.wave.2"
+        default: base = "speaker.wave.3"
+        }
+        return active ? base + ".fill" : base
+    }
+
+    /// SF Symbol for the menu bar. `volume` shapes the speaker variants;
+    /// device glyphs (headphones, display, …) ignore it — silence for those
+    /// is handled by the caller, which swaps in the bare speaker at 0 %.
+    public func menuBarSymbol(active: Bool, volume: Float = 1) -> String {
         switch self {
         case .builtinSpeaker, .genericSpeaker:
-            return active ? "speaker.wave.2.fill" : "speaker.wave.2"
+            return Self.speakerSymbol(forVolume: volume, active: active)
         case .headphones: return "headphones"
         case .airPods: return "airpods"
         case .airPodsPro: return "airpodspro"
