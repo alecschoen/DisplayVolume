@@ -139,8 +139,29 @@ private struct VisualEffectBackground: NSViewRepresentable {
         view.material = .popover
         view.blendingMode = .behindWindow
         view.state = .active
+        // The behind-window blur is composited by the window server, which
+        // ignores layer masks/clipShape — maskImage is the only way to
+        // actually round the blur region (otherwise square corners ghost
+        // around the panel).
+        view.maskImage = .roundedRectMask(radius: 14)
         return view
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+extension NSImage {
+    /// Stretchable rounded-rect mask for NSVisualEffectView.maskImage.
+    static func roundedRectMask(radius: CGFloat) -> NSImage {
+        let side = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius,
+                                       bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
 }

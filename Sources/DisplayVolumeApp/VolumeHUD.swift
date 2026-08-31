@@ -64,10 +64,10 @@ final class VolumeHUDController {
         effect.material = .hudWindow
         effect.blendingMode = .behindWindow
         effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 16
-        effect.layer?.cornerCurve = .continuous
-        effect.layer?.masksToBounds = true
+        // maskImage, not a layer mask: the window server composites the
+        // blur and ignores layer masks, which left square corners ghosting
+        // around the rounded pill.
+        effect.maskImage = .roundedRectMask(radius: 16)
         effect.autoresizingMask = [.width, .height]
 
         let hosting = NSHostingView(rootView: VolumeHUDView(model: model))
